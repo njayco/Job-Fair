@@ -1,18 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
 
+// Support both Replit AI integration key and user-provided Anthropic key
 const client = new Anthropic({
-  apiKey: process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL,
+  apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
+  ...(process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL && !process.env.ANTHROPIC_API_KEY
+    ? { baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL }
+    : {}),
 });
-
-const ARCHETYPES = [
-  'AI Platform / LLMOps Engineer',
-  'Agentic Workflows / Automation',
-  'Technical AI Product Manager',
-  'AI Solutions Architect',
-  'AI Forward Deployed Engineer',
-  'AI Transformation Lead',
-];
 
 const SYSTEM_PROMPT = `You are an expert career coach and job evaluation specialist. Your job is to evaluate job offers against a candidate's CV and background.
 
@@ -41,7 +35,7 @@ Scoring dimensions:
 IMPORTANT: Always respond with valid JSON matching the exact schema requested. Never fabricate metrics or experience not present in the CV.`;
 
 function buildEvaluationPrompt(jobDescription, cvContent) {
-  return `You must evaluate this job offer against the candidate's CV and return a structured JSON evaluation.
+  return `Evaluate this job offer against the candidate's CV. Return ONLY a valid JSON object — no markdown, no explanation.
 
 ## Candidate CV:
 ${cvContent}
@@ -49,8 +43,7 @@ ${cvContent}
 ## Job Description:
 ${jobDescription}
 
-Return ONLY a valid JSON object with this exact structure (no markdown, no explanation, just JSON):
-
+Return this exact JSON structure:
 {
   "archetype": "one of the 6 archetypes",
   "archetype_secondary": "second archetype if hybrid, or null",
@@ -73,7 +66,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
   },
   "block_b": {
     "matches": [
-      {"requirement": "JD requirement text", "cv_match": "exact CV line or experience", "strength": "strong/partial/weak"}
+      {"requirement": "JD requirement", "cv_match": "exact CV line or experience", "strength": "strong/partial/weak"}
     ],
     "gaps": [
       {"gap": "requirement not met", "severity": "blocker/nice-to-have", "mitigation": "how to address this gap"}
@@ -114,6 +107,43 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
   "recommendation": "APPLY / CONSIDER / SKIP",
   "recommendation_reason": "1-2 sentence reason for recommendation"
 }`;
+}
+
+export async function fetchJobDescription(url) {
+  // Use a simple fetch to get the page content as text
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; CareerOps/1.0)',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch job URL: HTTP ${response.status}`);
+  }
+
+  const html = await response.text();
+
+  // Strip HTML tags to get plain text
+  const text = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\s{3,}/g, '\n\n')
+    .trim();
+
+  if (text.length < 100) {
+    throw new Error('Could not extract meaningful content from the job URL. Please paste the job description directly.');
+  }
+
+  // Return a reasonable portion (up to 8000 chars to fit in prompt)
+  return text.slice(0, 8000);
 }
 
 export async function evaluateJob(jobDescription, cvContent) {
