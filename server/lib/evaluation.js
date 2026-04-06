@@ -1,4 +1,76 @@
 import Anthropic from '@anthropic-ai/sdk';
+import dns from 'dns/promises';
+import net from 'net';
+
+// SSRF protection: check if an IP address is in a private/reserved range
+function isPrivateIp(ip) {
+  if (net.isIPv4(ip)) {
+    const parts = ip.split('.').map(Number);
+    const [a, b, c] = parts;
+    return (
+      a === 127 ||                              // loopback
+      a === 10 ||                               // RFC1918 10.0.0.0/8
+      (a === 172 && b >= 16 && b <= 31) ||      // RFC1918 172.16.0.0/12
+      (a === 192 && b === 168) ||               // RFC1918 192.168.0.0/16
+      (a === 169 && b === 254) ||               // link-local / AWS metadata
+      (a === 100 && b >= 64 && b <= 127) ||     // CGNAT / Tailscale
+      a === 0 ||                                // 0.0.0.0/8
+      a >= 224                                  // multicast / reserved
+    );
+  }
+  if (net.isIPv6(ip)) {
+    const lower = ip.toLowerCase();
+    return (
+      lower === '::1' ||                        // loopback
+      lower.startsWith('fc') ||                 // ULA (RFC4193)
+      lower.startsWith('fd') ||
+      lower.startsWith('fe80') ||               // link-local
+      lower.startsWith('::ffff:') ||            // IPv4-mapped — recheck below
+      lower === '::' ||
+      lower.startsWith('100::')                 // discard prefix
+    );
+  }
+  return false;
+}
+
+async function validateAndResolveUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error('Invalid URL format. Please provide a valid https:// job URL.');
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('Only http and https URLs are allowed.');
+  }
+
+  const hostname = parsed.hostname;
+
+  // Block IPs directly in the hostname
+  if (net.isIP(hostname)) {
+    if (isPrivateIp(hostname)) {
+      throw new Error('Job URL must point to a public website, not an internal address.');
+    }
+    return rawUrl;
+  }
+
+  // Resolve DNS and validate all resolved IPs
+  let addresses;
+  try {
+    addresses = await dns.resolve(hostname);
+  } catch {
+    throw new Error(`Could not resolve hostname "${hostname}". Please check the URL.`);
+  }
+
+  for (const addr of addresses) {
+    if (isPrivateIp(addr)) {
+      throw new Error('Job URL resolves to a private or reserved IP address. Only public job sites are allowed.');
+    }
+  }
+
+  return rawUrl;
+}
 
 // Support both Replit AI integration key and user-provided Anthropic key
 const client = new Anthropic({
@@ -110,22 +182,73 @@ Return this exact JSON structure:
 }
 
 export async function fetchJobDescription(url) {
-  // Use a simple fetch to get the page content as text
+  // Validate URL and guard against SSRF before making any network request
+  await validateAndResolveUrl(url);
+
+  const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2 MB max
+
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; CareerOps/1.0)',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     },
+    // Do NOT follow redirects automatically — re-validate redirect targets
+    redirect: 'manual',
     signal: AbortSignal.timeout(15000),
   });
+
+  // Handle redirects safely: validate the redirect destination before following
+  if (response.status >= 300 && response.status < 400) {
+    const redirectUrl = response.headers.get('location');
+    if (!redirectUrl) {
+      throw new Error('Server redirected without a Location header.');
+    }
+    // Resolve relative redirect against original URL
+    const absoluteRedirect = new URL(redirectUrl, url).toString();
+    await validateAndResolveUrl(absoluteRedirect);
+    // Follow the validated redirect (one hop only)
+    const redirected = await fetch(absoluteRedirect, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; CareerOps/1.0)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      redirect: 'error',
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!redirected.ok) {
+      throw new Error(`Failed to fetch job URL after redirect: HTTP ${redirected.status}`);
+    }
+    // Check content-type
+    const ct = redirected.headers.get('content-type') || '';
+    if (!ct.includes('text/html') && !ct.includes('text/plain') && !ct.includes('application/xhtml')) {
+      throw new Error('Job URL does not appear to contain readable text content.');
+    }
+    const raw = await redirected.text();
+    if (raw.length > MAX_RESPONSE_BYTES) {
+      throw new Error('Job URL response is too large. Please paste the job description directly.');
+    }
+    return extractTextFromHtml(raw);
+  }
 
   if (!response.ok) {
     throw new Error(`Failed to fetch job URL: HTTP ${response.status}`);
   }
 
-  const html = await response.text();
+  // Check content-type
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('text/html') && !contentType.includes('text/plain') && !contentType.includes('application/xhtml')) {
+    throw new Error('Job URL does not appear to contain readable text content. Please paste the job description directly.');
+  }
 
-  // Strip HTML tags to get plain text
+  const html = await response.text();
+  if (html.length > MAX_RESPONSE_BYTES) {
+    throw new Error('Job URL response is too large. Please paste the job description directly.');
+  }
+
+  return extractTextFromHtml(html);
+}
+
+function extractTextFromHtml(html) {
   const text = html
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
@@ -142,7 +265,7 @@ export async function fetchJobDescription(url) {
     throw new Error('Could not extract meaningful content from the job URL. Please paste the job description directly.');
   }
 
-  // Return a reasonable portion (up to 8000 chars to fit in prompt)
+  // Return up to 8000 chars to fit in the prompt
   return text.slice(0, 8000);
 }
 
