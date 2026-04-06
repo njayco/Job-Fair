@@ -6,7 +6,10 @@ import { Badge } from '../components/ui/badge';
 import { getApplication, generatePdf, downloadBlob, scoreColor, updateApplicationStatus } from '../api';
 import type { Application, Evaluation, EvaluateResponse, AppStatus } from '../api';
 import ReactMarkdown from 'react-markdown';
-import { FileDown, LayoutDashboard, ChevronLeft, ArrowRight, ExternalLink, CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
+import {
+  FileDown, LayoutDashboard, ChevronLeft, ArrowRight, ExternalLink,
+  CheckCircle2, AlertCircle, XCircle, TrendingUp, DollarSign, FileEdit, BookOpen,
+} from 'lucide-react';
 
 export default function ResultsPage() {
   const { id } = useParams();
@@ -81,6 +84,10 @@ export default function ResultsPage() {
   const recommendation = scoreNum >= 4.0 ? 'APPLY' : scoreNum >= 3.0 ? 'CONSIDER' : 'SKIP';
   const block_a = evaluation?.block_a;
   const block_b = evaluation?.block_b;
+  const block_c = evaluation?.block_c;
+  const block_d = evaluation?.block_d;
+  const block_e = evaluation?.block_e;
+  const block_f = evaluation?.block_f;
 
   return (
     <Layout>
@@ -136,6 +143,11 @@ export default function ResultsPage() {
             </div>
           )}
 
+          {/* Recommendation Reason */}
+          {evaluation?.recommendation_reason && (
+            <p className="text-sm text-[var(--color-text-muted)]">{evaluation.recommendation_reason}</p>
+          )}
+
           {/* Actions */}
           <div className="flex flex-wrap gap-3 pt-4 border-t border-[var(--color-border)]">
             <Button onClick={handleDownloadPdf} disabled={pdfLoading} className="gap-2 font-mono" variant="primary">
@@ -150,12 +162,12 @@ export default function ResultsPage() {
                 className="gap-2 font-mono"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                {saving ? 'SAVING...' : 'SAVE TO PIPELINE'}
+                {saving ? 'SAVING...' : 'MARK AS APPLIED'}
               </Button>
             ) : (
               <span className="inline-flex items-center gap-2 px-3 py-2 text-sm font-mono text-[var(--color-green-indicator)]">
                 <CheckCircle2 className="w-4 h-4" />
-                SAVED: {savedStatus}
+                STATUS: {savedStatus}
               </span>
             )}
             <Link to="/pipeline">
@@ -172,7 +184,26 @@ export default function ResultsPage() {
           </div>
         </div>
 
-        {/* Role Summary (Block A) */}
+        {/* Score Breakdown */}
+        {evaluation?.score && (
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+            <h2 className="text-sm font-bold font-mono uppercase text-[var(--color-text-muted)]">Score Breakdown</h2>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+              {(Object.entries(evaluation.score) as Array<[string, number]>).map(([key, val]) => (
+                <div key={key} className="text-center">
+                  <div className={`text-2xl font-bold font-mono ${
+                    val >= 4 ? 'text-[var(--color-green-indicator)]' :
+                    val >= 3 ? 'text-[var(--color-yellow-indicator)]' :
+                    'text-[var(--color-red-indicator)]'
+                  }`}>{val}</div>
+                  <div className="text-xs font-mono text-[var(--color-text-muted)] uppercase mt-1">{key.replace(/_/g, ' ')}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Block A — Role Classification */}
         {block_a && (
           <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
             <h2 className="text-lg font-bold font-mono uppercase text-[var(--color-primary)]">A — Role Classification</h2>
@@ -199,10 +230,9 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* CV Match & Gaps (Block B) */}
+        {/* Block B — CV Match & Gaps */}
         {block_b && (
           <div className="grid md:grid-cols-2 gap-6">
-            {/* Matches */}
             <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
               <h2 className="text-lg font-bold font-mono uppercase text-[var(--color-primary)]">B — CV Match</h2>
               <div className="space-y-3">
@@ -218,7 +248,6 @@ export default function ResultsPage() {
               </div>
             </div>
 
-            {/* Gaps */}
             <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
               <h2 className="text-lg font-bold font-mono uppercase text-[var(--color-accent)]">B — Gaps</h2>
               {block_b.gaps.length === 0 ? (
@@ -227,7 +256,7 @@ export default function ResultsPage() {
                 <div className="space-y-3">
                   {block_b.gaps.map((g, i) => (
                     <div key={i} className="text-sm space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {g.severity === 'blocker'
                           ? <XCircle className="w-4 h-4 text-[var(--color-red-indicator)] shrink-0" />
                           : <AlertCircle className="w-4 h-4 text-[var(--color-yellow-indicator)] shrink-0" />}
@@ -243,34 +272,174 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* Score Breakdown */}
-        {evaluation?.score && (
+        {/* Block C — Level & Seniority Strategy */}
+        {block_c && (
           <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
-            <h2 className="text-lg font-bold font-mono uppercase text-[var(--color-text-muted)]">Score Breakdown</h2>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-              {(Object.entries(evaluation.score) as Array<[string, number]>).map(([key, val]) => (
-                <div key={key} className="text-center">
-                  <div className={`text-2xl font-bold font-mono ${
-                    val >= 4 ? 'text-[var(--color-green-indicator)]' :
-                    val >= 3 ? 'text-[var(--color-yellow-indicator)]' :
-                    'text-[var(--color-red-indicator)]'
-                  }`}>{val}</div>
-                  <div className="text-xs font-mono text-[var(--color-text-muted)] uppercase mt-1">{key.replace('_', ' ')}</div>
-                </div>
-              ))}
+            <h2 className="text-lg font-bold font-mono uppercase flex items-center gap-2 text-[var(--color-primary)]">
+              <TrendingUp className="w-5 h-5" />
+              C — Level & Seniority Strategy
+            </h2>
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-1">
+                <div className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Role Level</div>
+                <div className="text-[var(--color-text)]">{block_c.level_detected}</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Your Level</div>
+                <div className="text-[var(--color-text)]">{block_c.candidate_level}</div>
+              </div>
             </div>
+            {block_c.senior_pitch && (
+              <div className="space-y-1">
+                <div className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Senior Pitch</div>
+                <p className="text-sm text-[var(--color-text)]">{block_c.senior_pitch}</p>
+              </div>
+            )}
+            {block_c.downlevel_plan && (
+              <div className="space-y-1">
+                <div className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Downlevel Plan</div>
+                <p className="text-sm text-[var(--color-text)]">{block_c.downlevel_plan}</p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Recommendation Reason */}
-        {evaluation?.recommendation_reason && (
-          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-2">
-            <h2 className="text-lg font-bold font-mono uppercase text-[var(--color-text-muted)]">Recommendation</h2>
-            <p className="text-sm text-[var(--color-text)]">{evaluation.recommendation_reason}</p>
+        {/* Block D — Compensation Analysis */}
+        {block_d && (
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+            <h2 className="text-lg font-bold font-mono uppercase flex items-center gap-2 text-[var(--color-primary)]">
+              <DollarSign className="w-5 h-5" />
+              D — Compensation Analysis
+            </h2>
+            <table className="w-full text-sm">
+              <tbody className="divide-y divide-[var(--color-border)]">
+                {([
+                  ['Salary Range', block_d.salary_range],
+                  ['Market Position', block_d.market_position],
+                  ['Company Comp', block_d.company_comp_reputation],
+                  ['Demand Trend', block_d.demand_trend],
+                ] as Array<[string, string]>).map(([label, value]) => (
+                  <tr key={label}>
+                    <td className="py-2 pr-4 font-mono text-xs text-[var(--color-text-muted)] uppercase w-40">{label}</td>
+                    <td className="py-2 text-[var(--color-text)]">{value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
-        {/* Full Report Markdown fallback (when no structured data) */}
+        {/* Block E — CV & LinkedIn Changes */}
+        {block_e && (block_e.cv_changes.length > 0 || block_e.linkedin_changes.length > 0) && (
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-6">
+            <h2 className="text-lg font-bold font-mono uppercase flex items-center gap-2 text-[var(--color-primary)]">
+              <FileEdit className="w-5 h-5" />
+              E — CV & LinkedIn Tailoring
+            </h2>
+
+            {block_e.cv_changes.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-mono uppercase text-[var(--color-text-muted)]">CV Changes</h3>
+                <div className="space-y-4">
+                  {block_e.cv_changes.map((c, i) => (
+                    <div key={i} className="text-sm space-y-2 pb-4 border-b border-[var(--color-border)] last:border-0">
+                      <div className="font-medium text-[var(--color-text)] font-mono">{c.section}</div>
+                      <div className="grid md:grid-cols-2 gap-2">
+                        <div className="bg-[var(--color-red-indicator)]/5 rounded p-2">
+                          <div className="text-xs font-mono text-[var(--color-text-muted)] mb-1">CURRENT</div>
+                          <p className="text-[var(--color-text-muted)]">{c.current}</p>
+                        </div>
+                        <div className="bg-[var(--color-green-indicator)]/5 rounded p-2">
+                          <div className="text-xs font-mono text-[var(--color-text-muted)] mb-1">PROPOSED</div>
+                          <p className="text-[var(--color-text)]">{c.proposed}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-[var(--color-text-muted)] italic">{c.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {block_e.linkedin_changes.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-mono uppercase text-[var(--color-text-muted)]">LinkedIn Changes</h3>
+                <div className="space-y-3">
+                  {block_e.linkedin_changes.map((c, i) => (
+                    <div key={i} className="text-sm space-y-1 pb-3 border-b border-[var(--color-border)] last:border-0">
+                      <div className="font-medium text-[var(--color-text)] font-mono">{c.section}</div>
+                      <p className="text-[var(--color-text-muted)]">{c.change}</p>
+                      <p className="text-xs text-[var(--color-text-muted)] italic">{c.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Block F — Interview Prep */}
+        {block_f && (
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-6">
+            <h2 className="text-lg font-bold font-mono uppercase flex items-center gap-2 text-[var(--color-primary)]">
+              <BookOpen className="w-5 h-5" />
+              F — Interview Preparation
+            </h2>
+
+            {block_f.recommended_case_study && (
+              <div className="p-3 bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/20 rounded-lg">
+                <div className="text-xs font-mono text-[var(--color-accent)] uppercase mb-1">Recommended Case Study</div>
+                <p className="text-sm text-[var(--color-text)]">{block_f.recommended_case_study}</p>
+              </div>
+            )}
+
+            {block_f.star_stories.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-mono uppercase text-[var(--color-text-muted)]">STAR Stories</h3>
+                <div className="space-y-6">
+                  {block_f.star_stories.map((s, i) => (
+                    <div key={i} className="space-y-3 pb-6 border-b border-[var(--color-border)] last:border-0">
+                      <div className="font-medium text-[var(--color-text)]">{s.requirement}</div>
+                      {s.story && <p className="text-sm text-[var(--color-text-muted)]">{s.story}</p>}
+                      <div className="grid md:grid-cols-2 gap-3 text-xs">
+                        {(['situation', 'task', 'action', 'result'] as const).map(key => (
+                          s[key] ? (
+                            <div key={key} className="space-y-1">
+                              <div className="font-mono text-[var(--color-text-muted)] uppercase">{key}</div>
+                              <p className="text-[var(--color-text)]">{s[key]}</p>
+                            </div>
+                          ) : null
+                        ))}
+                      </div>
+                      {s.reflection && (
+                        <p className="text-xs text-[var(--color-text-muted)] italic">{s.reflection}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {block_f.red_flag_questions.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-mono uppercase text-[var(--color-text-muted)]">Red Flag Questions</h3>
+                <div className="space-y-4">
+                  {block_f.red_flag_questions.map((q, i) => (
+                    <div key={i} className="space-y-2 pb-4 border-b border-[var(--color-border)] last:border-0">
+                      <div className="text-sm font-medium text-[var(--color-yellow-indicator)] flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        {q.question}
+                      </div>
+                      <p className="text-sm text-[var(--color-text-muted)] ml-6">{q.response}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Full Report Markdown fallback when no structured data available */}
         {!evaluation && app.report_md && (
           <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 md:p-8 prose prose-invert max-w-none">
             <ReactMarkdown>{app.report_md}</ReactMarkdown>

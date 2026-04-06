@@ -11,7 +11,15 @@ type SortField = 'score' | 'date';
 type SortOrder = 'asc' | 'desc';
 type FilterValue = 'All' | AppStatus | 'Top';
 
-const TABS: FilterValue[] = ['All', 'Evaluated', 'Applied', 'Interview', 'Top', 'SKIP'];
+interface Tab { value: FilterValue; label: string; }
+const TABS: Tab[] = [
+  { value: 'All', label: 'All' },
+  { value: 'Evaluated', label: 'Evaluated' },
+  { value: 'Applied', label: 'Applied' },
+  { value: 'Interview', label: 'Interview' },
+  { value: 'Top', label: 'Top ≥4' },
+  { value: 'SKIP', label: 'Skip' },
+];
 
 export default function PipelinePage() {
   const [apps, setApps] = useState<Application[]>([]);
@@ -98,11 +106,11 @@ export default function PipelinePage() {
         <div className="flex space-x-2 border-b border-[var(--color-border)] overflow-x-auto pb-2">
           {TABS.map(tab => (
             <button
-              key={tab}
-              onClick={() => setFilter(tab)}
-              className={`px-3 py-1.5 font-mono text-sm whitespace-nowrap border-b-2 transition-colors ${filter === tab ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
+              key={tab.value}
+              onClick={() => setFilter(tab.value)}
+              className={`px-3 py-1.5 font-mono text-sm whitespace-nowrap border-b-2 transition-colors ${filter === tab.value ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>
