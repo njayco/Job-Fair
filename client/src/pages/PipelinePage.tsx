@@ -129,7 +129,8 @@ export default function PipelinePage() {
             <table className="w-full text-left text-sm">
               <thead className="bg-[var(--color-bg)] border-b border-[var(--color-border)] font-mono text-xs uppercase text-[var(--color-text-muted)]">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Company & Role</th>
+                  <th className="px-4 py-3 font-medium">Company</th>
+                  <th className="px-4 py-3 font-medium hidden lg:table-cell">Role</th>
                   <th
                     className="px-4 py-3 font-medium w-28 cursor-pointer hover:text-[var(--color-text)] select-none"
                     onClick={() => handleSort('score')}
@@ -166,8 +167,11 @@ export default function PipelinePage() {
                             </a>
                           )}
                         </div>
-                        <div className="text-[var(--color-text-muted)] text-xs truncate max-w-[250px]">{app.role}</div>
+                        <div className="text-[var(--color-text-muted)] text-xs truncate max-w-[200px] lg:hidden">{app.role}</div>
                       </Link>
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell text-[var(--color-text-muted)] text-xs truncate max-w-[200px]">
+                      {app.role}
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={getBadgeVariant(app.score)} className="text-sm px-2">
