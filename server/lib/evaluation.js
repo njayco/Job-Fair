@@ -1,6 +1,36 @@
 import Anthropic from '@anthropic-ai/sdk';
 import dns from 'dns/promises';
 import net from 'net';
+import { readFile } from 'fs/promises';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(__dirname, '..', '..');
+
+// Load scoring system and archetypes from the original modes/ prompt files
+async function loadPromptContext() {
+  try {
+    const [shared, oferta] = await Promise.all([
+      readFile(resolve(projectRoot, 'modes', '_shared.md'), 'utf-8').catch(() => ''),
+      readFile(resolve(projectRoot, 'modes', 'oferta.md'), 'utf-8').catch(() => ''),
+    ]);
+    return { shared, oferta };
+  } catch {
+    return { shared: '', oferta: '' };
+  }
+}
+
+let _promptContext = null;
+async function getPromptContext() {
+  if (!_promptContext) {
+    _promptContext = await loadPromptContext();
+  }
+  return _promptContext;
+}
+
+// Model is configurable via env var; default is claude-sonnet-4-6 (Replit AI Integration)
+const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
 
 // SSRF protection: check if an IP address is in a private/reserved range
 function isPrivateIp(ip) {
@@ -80,31 +110,25 @@ const client = new Anthropic({
     : {}),
 });
 
-const SYSTEM_PROMPT = `You are an expert career coach and job evaluation specialist. Your job is to evaluate job offers against a candidate's CV and background.
-
-You evaluate job offers across 6 blocks (A-F) using a 1-5 scoring system:
-- 4.5+ = Strong match, apply immediately
-- 4.0-4.4 = Good match, worth applying
-- 3.5-3.9 = Decent, apply only with specific reason
-- Below 3.5 = Not recommended
-
-The 6 archetypes you classify roles into:
-1. AI Platform / LLMOps Engineer - Key signals: observability, evals, pipelines, monitoring, reliability
-2. Agentic Workflows / Automation - Key signals: agent, HITL, orchestration, workflow, multi-agent
-3. Technical AI Product Manager - Key signals: PRD, roadmap, discovery, stakeholder, product manager
-4. AI Solutions Architect - Key signals: architecture, enterprise, integration, design, systems
-5. AI Forward Deployed Engineer - Key signals: client-facing, deploy, prototype, fast delivery, field
-6. AI Transformation Lead - Key signals: change management, adoption, enablement, transformation
-
-Scoring dimensions:
-- Match with CV (skills, experience, proof points alignment)
-- North Star alignment (how well the role fits target archetypes)
-- Comp (salary vs market: 5=top quartile, 1=well below)
-- Cultural signals (company culture, growth, stability, remote policy)
-- Red flags (blockers, warnings — negative adjustments)
-- Global (weighted average)
-
-IMPORTANT: Always respond with valid JSON matching the exact schema requested. Never fabricate metrics or experience not present in the CV.`;
+// System prompt is assembled from the modes/ source files at runtime
+async function buildSystemPrompt() {
+  const { shared, oferta } = await getPromptContext();
+  return [
+    'You are an expert career coach and job evaluation specialist.',
+    'You evaluate job offers against a candidate\'s CV and background.',
+    '',
+    shared ? '## Evaluation System (from modes/_shared.md)' : '',
+    shared || '',
+    oferta ? '## Evaluation Mode (from modes/oferta.md)' : '',
+    oferta || '',
+    '',
+    '## API Constraints',
+    'You are operating as a REST API endpoint — not as an interactive assistant.',
+    'IMPORTANT: Always respond with valid JSON matching the exact schema requested.',
+    'Never fabricate metrics or experience not present in the CV.',
+    'Generate content in the language of the job description (English by default).',
+  ].filter(Boolean).join('\n');
+}
 
 function buildEvaluationPrompt(jobDescription, cvContent) {
   return `Evaluate this job offer against the candidate's CV. Return ONLY a valid JSON object — no markdown, no explanation.
@@ -271,11 +295,12 @@ function extractTextFromHtml(html) {
 
 export async function evaluateJob(jobDescription, cvContent) {
   const prompt = buildEvaluationPrompt(jobDescription, cvContent);
+  const systemPrompt = await buildSystemPrompt();
 
   const message = await client.messages.create({
-    model: 'claude-sonnet-4-6',
+    model: MODEL,
     max_tokens: 8192,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     messages: [{ role: 'user', content: prompt }],
   });
 
