@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "AI-powered job search pipeline built on Claude Code",
   "scripts": {
+    "server": "node server/index.js",
+    "server:dev": "node --watch server/index.js",
     "verify": "node verify-pipeline.mjs",
     "normalize": "node normalize-statuses.mjs",
     "dedup": "node dedup-tracker.mjs",
@@ -13,7 +15,13 @@
     "update": "node update-system.mjs apply",
     "rollback": "node update-system.mjs rollback"
   },
-  "keywords": ["ai", "job-search", "claude-code", "career", "automation"],
+  "keywords": [
+    "ai",
+    "job-search",
+    "claude-code",
+    "career",
+    "automation"
+  ],
   "author": "Santiago Fernández de Valderrama <hi@santifer.io> (https://santifer.io)",
   "homepage": "https://santifer.io",
   "repository": {
@@ -22,6 +30,17 @@
   },
   "license": "MIT",
   "dependencies": {
-    "playwright": "^1.58.1"
+    "@anthropic-ai/sdk": "^0.82.0",
+    "cors": "^2.8.6",
+    "drizzle-zod": "^0.8.3",
+    "express": "^5.2.1",
+    "multer": "^2.1.1",
+    "p-limit": "^7.3.0",
+    "p-retry": "^7.1.1",
+    "pg": "^8.20.0",
+    "playwright": "^1.58.1",
+    "tmp": "^0.2.5",
+    "zod": "^4.3.6",
+    "zod-validation-error": "^5.0.0"
   }
 }

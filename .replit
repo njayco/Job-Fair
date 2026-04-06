@@ -1,6 +1,7 @@
-modules = ["go-1.21", "nodejs-20", "bash", "web"]
+modules = ["go-1.21", "nodejs-20", "bash", "web", "postgresql-16"]
 [agent]
 expertMode = true
+integrations = ["javascript_anthropic_ai_integrations:2.0.0"]
 
 [nix]
 channel = "stable-25_05"
@@ -17,6 +18,10 @@ author = "agent"
 task = "workflow.run"
 args = "Start application"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start API"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -27,3 +32,18 @@ args = "bash run-dashboard.sh"
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow]]
+name = "Start API"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run server"
+
+[[ports]]
+localPort = 3001
+externalPort = 3001

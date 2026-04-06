@@ -1,44 +1,97 @@
 # Career-Ops
 
-An AI-powered job search pipeline and automation toolkit built on Claude Code. It automates job discovery, evaluation, CV tailoring, and application tracking.
+An AI-powered job search pipeline — originally a Claude Code CLI tool, being rebuilt as a full web application.
 
 ## Architecture
 
-- **Languages**: Node.js (automation scripts), Go (terminal dashboard)
+- **Languages**: Node.js (backend API + scripts), Go (terminal dashboard)
 - **Package Manager**: npm (Node.js), Go Modules (dashboard)
-- **Build**: Go binary compiled to `career-ops-dashboard`
+- **AI**: Anthropic Claude via Replit AI Integrations (`claude-sonnet-4-6`)
+- **Database**: PostgreSQL (Replit built-in, env vars: DATABASE_URL, PGHOST, etc.)
+
+## Workflows
+
+| Workflow | Command | Port | Description |
+|----------|---------|------|-------------|
+| Start application | `bash run-dashboard.sh` | — | Go TUI dashboard (console) |
+| Start API | `npm run server` | 3001 | Express REST API backend |
 
 ## Project Structure
 
-- `dashboard/` - Go TUI dashboard (Bubble Tea + Lipgloss, Catppuccin theme)
-- `modes/` - Claude Code skill markdown files for different commands
-- `batch/` - Parallel processing orchestrator scripts
-- `config/` - Profile and portal configuration templates (YAML)
-- `templates/` - HTML/CSS templates for CV generation
-- `data/` - Application tracker (`applications.md`)
-- `reports/` - Evaluation reports (markdown)
-- `output/` - Generated PDF CVs (gitignored)
-- `examples/` - Sample files and CV example
+```
+career-ops/
+├── server/                  # Express API backend (Phase 1)
+│   ├── index.js             # Main app entry, port 3001
+│   ├── db.js                # PostgreSQL pool
+│   ├── package.json         # {"type":"module"} for ESM
+│   ├── lib/
+│   │   └── evaluation.js    # Anthropic API evaluation logic
+│   └── routes/
+│       ├── health.js        # GET /api/health
+│       ├── evaluate.js      # POST /api/evaluate
+│       ├── pdf.js           # POST /api/generate-pdf
+│       ├── applications.js  # CRUD /api/applications
+│       └── cv.js            # GET/PUT /api/cv
+├── dashboard/               # Go TUI (Bubble Tea)
+├── modes/                   # Evaluation prompts (from original CLI)
+├── templates/               # CV HTML template + portal configs
+├── fonts/                   # Space Grotesk + DM Sans woff2 files
+├── data/                    # applications.md tracker (legacy)
+├── reports/                 # Evaluation reports markdown (legacy)
+├── output/                  # Generated PDFs
+└── *.mjs                    # Original Node.js pipeline scripts
+```
 
-## Key Files
+## API Endpoints (Phase 1)
 
-- `generate-pdf.mjs` - Playwright-based PDF generator
-- `merge-tracker.mjs` - Merge application tracker data
-- `verify-pipeline.mjs` - Pipeline integrity checker
-- `normalize-statuses.mjs` - Status normalization
-- `dedup-tracker.mjs` - Deduplication utility
-- `run-dashboard.sh` - Startup script (builds + runs dashboard)
-- `career-ops-dashboard` - Compiled Go dashboard binary
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/health | Health check + DB status |
+| POST | /api/evaluate | Evaluate job with AI (returns full A-F evaluation JSON) |
+| POST | /api/generate-pdf | Generate ATS-optimized PDF from CV data + evaluation |
+| GET | /api/applications | List all applications (supports sort, filter, pagination) |
+| POST | /api/applications | Create new application |
+| GET | /api/applications/:id | Get single application |
+| PATCH | /api/applications/:id | Update application (status, fields) |
+| DELETE | /api/applications/:id | Delete application |
+| GET | /api/applications/:id/report | Get full report markdown |
+| GET | /api/cv | Get saved CV markdown |
+| PUT | /api/cv | Save CV markdown |
 
-## Running
+## Database Schema
 
-The dashboard workflow runs `bash run-dashboard.sh`, which builds the Go binary if needed and launches the TUI.
+```sql
+users (id, email, created_at)
+applications (id, user_id, company, role, score, status, url, report_md, 
+              archetype, tldr, remote, comp_score, keywords, created_at, updated_at)
+cvs (id, user_id, content_md, updated_at) -- UNIQUE user_id
+```
+
+## Application Statuses
+
+`Evaluated | Applied | Responded | Interview | Offer | Rejected | Discarded | SKIP`
+
+## Key Files (Original CLI)
+
+- `generate-pdf.mjs` — Playwright PDF generator (standalone)
+- `modes/_shared.md` — Scoring system and archetypes (6 types)
+- `modes/oferta.md` — Evaluation blocks A-F definition
+- `batch/batch-prompt.md` — Self-contained worker evaluation prompt
+- `templates/cv-template.html` — ATS CV template with Space Grotesk + DM Sans
 
 ## npm Scripts
 
-- `npm run verify` - Check pipeline integrity
-- `npm run normalize` - Normalize application statuses
-- `npm run dedup` - Deduplicate tracker entries
-- `npm run merge` - Merge tracker data
-- `npm run pdf` - Generate PDF CV
-- `npm run sync-check` - CV sync check
+- `npm run server` — Start API server (port 3001)
+- `npm run server:dev` — Start API server with file watching
+- `npm run verify` — Check pipeline integrity
+- `npm run normalize` — Normalize application statuses
+- `npm run dedup` — Deduplicate tracker entries
+- `npm run merge` — Merge tracker data
+- `npm run pdf` — Generate PDF CV (standalone)
+
+## Phases
+
+- [x] Phase 1: Backend API (Express + Anthropic + PostgreSQL)
+- [ ] Phase 2: Web UI (React + Vite, port 5000)
+- [ ] Phase 3: User Authentication (JWT, email/password)
+- [ ] Phase 4: Stripe Payments (subscription tiers)
