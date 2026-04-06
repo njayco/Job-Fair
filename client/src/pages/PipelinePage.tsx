@@ -1,21 +1,32 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { getApplications, updateApplicationStatus, scoreColor, APP_STATUSES } from '../api';
 import type { Application, AppStatus } from '../api';
-import { Plus, ExternalLink, FileText, ChevronDown, Clock } from 'lucide-react';
+import { Plus, ExternalLink, ChevronDown, Clock, ChevronUp, ChevronsUpDown, FileText } from 'lucide-react';
+
+type SortField = 'score' | 'date';
+type SortOrder = 'asc' | 'desc';
+type FilterValue = 'All' | AppStatus | 'Top';
+
+const TABS: FilterValue[] = ['All', 'Evaluated', 'Applied', 'Interview', 'Top', 'SKIP'];
 
 export default function PipelinePage() {
-  const navigate = useNavigate();
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'All' | AppStatus | 'Top'>('All');
+  const [filter, setFilter] = useState<FilterValue>('All');
+  const [sortField, setSortField] = useState<SortField>('score');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   const fetchApps = async () => {
     try {
-      const res = await getApplications({ sort: 'score', order: 'desc', limit: 100 });
+      const res = await getApplications({
+        sort: sortField === 'date' ? 'created_at' : 'score',
+        order: sortOrder,
+        limit: 100,
+      });
       setApps(res.applications);
     } catch (e) {
       console.error(e);
@@ -25,13 +36,14 @@ export default function PipelinePage() {
   };
 
   useEffect(() => {
+    setLoading(true);
     fetchApps();
-  }, []);
+  }, [sortField, sortOrder]);
 
   const handleStatusChange = async (id: number, status: AppStatus) => {
     try {
       await updateApplicationStatus(id, status);
-      fetchApps(); // Refresh
+      fetchApps();
     } catch (e) {
       console.error(e);
     }
@@ -51,6 +63,22 @@ export default function PipelinePage() {
     return 'default';
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(o => o === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ChevronsUpDown className="w-3 h-3 ml-1 inline opacity-40" />;
+    return sortOrder === 'desc'
+      ? <ChevronDown className="w-3 h-3 ml-1 inline text-[var(--color-primary)]" />
+      : <ChevronUp className="w-3 h-3 ml-1 inline text-[var(--color-primary)]" />;
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -68,10 +96,10 @@ export default function PipelinePage() {
         </div>
 
         <div className="flex space-x-2 border-b border-[var(--color-border)] overflow-x-auto pb-2">
-          {['All', 'Evaluated', 'Applied', 'Interview', 'Top', 'SKIP'].map(tab => (
+          {TABS.map(tab => (
             <button
               key={tab}
-              onClick={() => setFilter(tab as any)}
+              onClick={() => setFilter(tab)}
               className={`px-3 py-1.5 font-mono text-sm whitespace-nowrap border-b-2 transition-colors ${filter === tab ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
             >
               {tab}
@@ -94,30 +122,44 @@ export default function PipelinePage() {
               <thead className="bg-[var(--color-bg)] border-b border-[var(--color-border)] font-mono text-xs uppercase text-[var(--color-text-muted)]">
                 <tr>
                   <th className="px-4 py-3 font-medium">Company & Role</th>
-                  <th className="px-4 py-3 font-medium w-24">Score</th>
+                  <th
+                    className="px-4 py-3 font-medium w-28 cursor-pointer hover:text-[var(--color-text)] select-none"
+                    onClick={() => handleSort('score')}
+                  >
+                    Score <SortIcon field="score" />
+                  </th>
                   <th className="px-4 py-3 font-medium hidden md:table-cell">Archetype</th>
                   <th className="px-4 py-3 font-medium w-40">Status</th>
-                  <th className="px-4 py-3 font-medium hidden sm:table-cell w-32">Date</th>
+                  <th
+                    className="px-4 py-3 font-medium hidden sm:table-cell w-32 cursor-pointer hover:text-[var(--color-text)] select-none"
+                    onClick={() => handleSort('date')}
+                  >
+                    Date <SortIcon field="date" />
+                  </th>
+                  <th className="px-4 py-3 font-medium w-20 text-right">Report</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {filteredApps.map(app => (
-                  <tr key={app.id} className="hover:bg-[var(--color-surface-hover)] transition-colors group cursor-pointer" onClick={(e) => {
-                    // Prevent navigation if clicking select
-                    if ((e.target as HTMLElement).tagName !== 'SELECT') {
-                      navigate(`/results/${app.id}`);
-                    }
-                  }}>
+                  <tr key={app.id} className="hover:bg-[var(--color-surface-hover)] transition-colors">
                     <td className="px-4 py-3">
-                      <div className="font-medium text-[var(--color-text)] flex items-center gap-2">
-                        {app.company}
-                        {app.url && (
-                          <a href={app.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-[var(--color-text-muted)] hover:text-[var(--color-primary)]">
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
-                      </div>
-                      <div className="text-[var(--color-text-muted)] text-xs truncate max-w-[250px]">{app.role}</div>
+                      <Link to={`/results/${app.id}`} className="block group">
+                        <div className="font-medium text-[var(--color-text)] group-hover:text-[var(--color-primary)] transition-colors flex items-center gap-2">
+                          {app.company}
+                          {app.url && (
+                            <a
+                              href={app.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                        <div className="text-[var(--color-text-muted)] text-xs truncate max-w-[250px]">{app.role}</div>
+                      </Link>
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={getBadgeVariant(app.score)} className="text-sm px-2">
@@ -127,7 +169,7 @@ export default function PipelinePage() {
                     <td className="px-4 py-3 hidden md:table-cell text-[var(--color-text-muted)] text-xs">
                       {app.archetype || '-'}
                     </td>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <td className="px-4 py-3">
                       <div className="relative">
                         <select
                           value={app.status}
@@ -139,9 +181,21 @@ export default function PipelinePage() {
                         <ChevronDown className="w-3 h-3 absolute right-2 top-1.5 pointer-events-none text-[var(--color-text-muted)]" />
                       </div>
                     </td>
-                    <td className="px-4 py-3 hidden sm:table-cell text-[var(--color-text-muted)] text-xs whitespace-nowrap flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {new Date(app.created_at).toLocaleDateString()}
+                    <td className="px-4 py-3 hidden sm:table-cell text-[var(--color-text-muted)] text-xs whitespace-nowrap">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(app.created_at).toLocaleDateString()}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        to={`/report/${app.id}`}
+                        className="inline-flex items-center gap-1 text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors"
+                        title="View full report"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span className="hidden md:inline">Report</span>
+                      </Link>
                     </td>
                   </tr>
                 ))}

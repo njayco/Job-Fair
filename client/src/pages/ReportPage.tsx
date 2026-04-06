@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { getApplicationReport } from '../api';
@@ -15,7 +15,7 @@ export default function ReportPage() {
     if (id) {
       getApplicationReport(Number(id))
         .then(setData)
-        .catch(err => setError(err.message))
+        .catch(e => setError(e instanceof Error ? e.message : 'Not found'))
         .finally(() => setLoading(false));
     }
   }, [id]);

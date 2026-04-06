@@ -1,8 +1,7 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
-import { Terminal, Crosshair, Zap, BarChart } from 'lucide-react';
+import { Terminal, Crosshair, Zap, BarChart, LayoutDashboard, FileText } from 'lucide-react';
 
 export default function LandingPage() {
   return (
@@ -70,6 +69,3 @@ export default function LandingPage() {
     </Layout>
   );
 }
-
-// Ensure LayoutDashboard and FileText are imported here if needed, or import from lucide-react.
-import { LayoutDashboard, FileText } from 'lucide-react';

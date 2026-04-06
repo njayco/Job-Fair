@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { evaluate } from '../api';
-import { FileText, Link as LinkIcon, Loader2, Save } from 'lucide-react';
+import { FileText, Link as LinkIcon, Loader2 } from 'lucide-react';
 
 export default function EvaluatePage() {
   const navigate = useNavigate();
@@ -51,9 +51,10 @@ export default function EvaluatePage() {
         job_url: activeTab === 'url' ? jobUrl : undefined,
         job_description: activeTab === 'desc' ? jobDesc : undefined,
       });
+      sessionStorage.setItem(`eval_${res.application_id}`, JSON.stringify(res));
       navigate(`/results/${res.application_id}`);
-    } catch (err: any) {
-      setError(err.message || 'Evaluation failed');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Evaluation failed');
       setIsEvaluating(false);
     }
   };
