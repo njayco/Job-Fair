@@ -15,6 +15,7 @@ An AI-powered job search pipeline — originally a Claude Code CLI tool, being r
 |----------|---------|------|-------------|
 | Start application | `bash run-dashboard.sh` | — | Go TUI dashboard (console) |
 | Start API | `npm run server` | 3001 | Express REST API backend |
+| Start client | `cd client && npm run dev` | 5000 | Vite+React frontend (webview) |
 
 ## Project Structure
 
@@ -32,6 +33,22 @@ career-ops/
 │       ├── pdf.js           # POST /api/generate-pdf
 │       ├── applications.js  # CRUD /api/applications
 │       └── cv.js            # GET/PUT /api/cv
+├── client/                  # React+Vite frontend (Phase 2)
+│   ├── src/
+│   │   ├── api.ts           # Typed API client for all endpoints
+│   │   ├── App.tsx          # Router with 5 routes
+│   │   ├── index.css        # Tailwind v4 + CSS vars (dark theme)
+│   │   ├── pages/
+│   │   │   ├── LandingPage.tsx    # / — hero + feature cards
+│   │   │   ├── EvaluatePage.tsx   # /evaluate — CV + job input form
+│   │   │   ├── ResultsPage.tsx    # /results/:id — evaluation report
+│   │   │   ├── PipelinePage.tsx   # /pipeline — application tracker
+│   │   │   └── ReportPage.tsx     # /report/:id — full markdown report
+│   │   └── components/
+│   │       ├── Layout.tsx         # Shared header/nav wrapper
+│   │       └── ui/                # Button, Badge primitives
+│   ├── vite.config.ts       # Port 5000, proxy /api → :3001
+│   └── package.json
 ├── dashboard/               # Go TUI (Bubble Tea)
 ├── modes/                   # Evaluation prompts (from original CLI)
 ├── templates/               # CV HTML template + portal configs
@@ -92,6 +109,6 @@ cvs (id, user_id, content_md, updated_at) -- UNIQUE user_id
 ## Phases
 
 - [x] Phase 1: Backend API (Express + Anthropic + PostgreSQL)
-- [ ] Phase 2: Web UI (React + Vite, port 5000)
+- [x] Phase 2: Web UI (React + Vite, port 5000)
 - [ ] Phase 3: User Authentication (JWT, email/password)
 - [ ] Phase 4: Stripe Payments (subscription tiers)
