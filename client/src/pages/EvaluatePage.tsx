@@ -1,9 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { evaluate } from '../api';
-import { FileText, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { FileText, Link as LinkIcon } from 'lucide-react';
+
+const PROGRESS_STAGES = [
+  { at: 0,  label: 'Initializing evaluation...' },
+  { at: 8,  label: 'Fetching job description...' },
+  { at: 22, label: 'Parsing CV content...' },
+  { at: 35, label: 'Matching skills to requirements...' },
+  { at: 50, label: 'Running AI analysis...' },
+  { at: 65, label: 'Scoring competency gaps...' },
+  { at: 78, label: 'Generating interview prep...' },
+  { at: 88, label: 'Compiling report...' },
+  { at: 95, label: 'Finalizing results...' },
+];
+
+function useProgress(active: boolean) {
+  const [progress, setProgress] = useState(0);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!active) {
+      setProgress(0);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      startRef.current = null;
+      return;
+    }
+
+    // Eased progress: fast early, very slow near 95%
+    const tick = (now: number) => {
+      if (!startRef.current) startRef.current = now;
+      const elapsed = (now - startRef.current) / 1000; // seconds
+
+      // Curve: approaches 95 asymptotically over ~40s
+      const target = 95 * (1 - Math.exp(-elapsed / 14));
+      setProgress(Math.min(target, 95));
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [active]);
+
+  const complete = () => setProgress(100);
+
+  return { progress, complete };
+}
 
 export default function EvaluatePage() {
   const navigate = useNavigate();
@@ -13,6 +58,9 @@ export default function EvaluatePage() {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'url' | 'desc'>('url');
+  const { progress, complete } = useProgress(isEvaluating);
+
+  const currentStage = [...PROGRESS_STAGES].reverse().find(s => progress >= s.at) ?? PROGRESS_STAGES[0];
 
   useEffect(() => {
     const savedCv = localStorage.getItem('career_ops_cv');
@@ -40,6 +88,8 @@ export default function EvaluatePage() {
         job_url: activeTab === 'url' ? jobUrl : undefined,
         job_description: activeTab === 'desc' ? jobDesc : undefined,
       });
+      complete();
+      await new Promise(r => setTimeout(r, 400));
       sessionStorage.setItem(`eval_${res.application_id}`, JSON.stringify(res));
       navigate(`/results/${res.application_id}`);
     } catch (e) {
@@ -59,6 +109,24 @@ export default function EvaluatePage() {
         {error && (
           <div className="p-4 bg-[var(--color-red-indicator)]/10 border border-[var(--color-red-indicator)]/20 rounded text-[var(--color-red-indicator)] font-mono text-sm">
             ERROR: {error}
+          </div>
+        )}
+
+        {isEvaluating && (
+          <div className="p-6 border border-[var(--color-border)] rounded bg-[var(--color-surface)] space-y-4">
+            <div className="flex items-center justify-between font-mono text-sm">
+              <span className="text-[var(--color-primary)]">{currentStage.label}</span>
+              <span className="text-[var(--color-text-muted)]">{Math.round(progress)}%</span>
+            </div>
+            <div className="w-full h-2 bg-[var(--color-bg)] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[var(--color-primary)] rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)] font-mono">
+              This usually takes 20–40 seconds. You can paste the job description instead to skip URL fetching.
+            </p>
           </div>
         )}
 
@@ -129,9 +197,7 @@ export default function EvaluatePage() {
                 className="w-full font-mono text-lg"
                 disabled={isEvaluating}
               >
-                {isEvaluating ? (
-                  <><Loader2 className="w-5 h-5 animate-spin mr-2" />ANALYZING...</>
-                ) : 'EVALUATE FIT'}
+                {isEvaluating ? 'ANALYZING...' : 'EVALUATE FIT'}
               </Button>
             </div>
           </div>
