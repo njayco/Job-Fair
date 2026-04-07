@@ -4,7 +4,8 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const COOKIE_NAME = 'auth_token';
 
 if (!JWT_SECRET) {
-  console.warn('WARNING: JWT_SECRET environment variable is not set. Auth will not work.');
+  console.error('FATAL: JWT_SECRET environment variable is not set. Refusing to start.');
+  process.exit(1);
 }
 
 export function signToken(payload) {
@@ -22,7 +23,12 @@ export function setAuthCookie(res, token) {
 }
 
 export function clearAuthCookie(res) {
-  res.clearCookie(COOKIE_NAME, { path: '/' });
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+  });
 }
 
 export function requireAuth(req, res, next) {
