@@ -9,6 +9,7 @@ import EvaluatePage from './pages/EvaluatePage';
 import ResultsPage from './pages/ResultsPage';
 import PipelinePage from './pages/PipelinePage';
 import ReportPage from './pages/ReportPage';
+import DonatePage from './pages/DonatePage';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/donate" element={<DonatePage />} />
           <Route path="/evaluate" element={<ProtectedRoute><EvaluatePage /></ProtectedRoute>} />
           <Route path="/results/:id" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
           <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />

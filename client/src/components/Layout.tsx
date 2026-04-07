@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Terminal, LayoutDashboard, FileText, User, LogOut } from 'lucide-react';
+import { Terminal, LayoutDashboard, FileText, User, LogOut, Heart, ExternalLink } from 'lucide-react';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -57,9 +57,36 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
+
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
+
+      <footer className="border-t border-[var(--color-border)] bg-[var(--color-surface)] mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-[var(--color-text-muted)]">
+            <div className="flex items-center gap-1 font-mono">
+              <span>Built by</span>
+              <a
+                href="https://njayco.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--color-primary)] hover:underline inline-flex items-center gap-1 ml-1"
+              >
+                NJAYCO
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <Link
+              to="/donate"
+              className="inline-flex items-center gap-1.5 font-mono hover:text-[var(--color-primary)] transition-colors"
+            >
+              <Heart className="w-3.5 h-3.5" />
+              Support this project
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
