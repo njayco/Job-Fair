@@ -12,8 +12,7 @@ const VALID_SORT_COLS = ['created_at', 'updated_at', 'score', 'comp_score', 'com
 // GET /api/applications
 router.get('/', async (req, res) => {
   try {
-    // Phase 1: default user_id = 1; Phase 3 will inject via req.user.id
-    const userId = parseInt(req.query.user_id, 10) || 1;
+    const userId = req.user.id;
 
     const {
       sort = 'created_at',
@@ -68,10 +67,9 @@ router.get('/', async (req, res) => {
 // GET /api/applications/:id
 router.get('/:id', async (req, res) => {
   try {
-    const userId = parseInt(req.query.user_id, 10) || 1;
     const result = await pool.query(
       'SELECT * FROM applications WHERE id = $1 AND user_id = $2',
-      [req.params.id, userId]
+      [req.params.id, req.user.id]
     );
 
     if (!result.rows.length) {
@@ -88,10 +86,9 @@ router.get('/:id', async (req, res) => {
 // GET /api/applications/:id/report
 router.get('/:id/report', async (req, res) => {
   try {
-    const userId = parseInt(req.query.user_id, 10) || 1;
     const result = await pool.query(
       'SELECT id, company, role, report_md FROM applications WHERE id = $1 AND user_id = $2',
-      [req.params.id, userId]
+      [req.params.id, req.user.id]
     );
 
     if (!result.rows.length) {
@@ -113,7 +110,7 @@ router.get('/:id/report', async (req, res) => {
 // POST /api/applications
 router.post('/', async (req, res) => {
   try {
-    const userId = parseInt(req.body.user_id, 10) || 1;
+    const userId = req.user.id;
     const {
       company, role, score, status = 'Evaluated',
       url, report_md, archetype, tldr, remote, comp_score, keywords,
@@ -157,10 +154,9 @@ router.post('/', async (req, res) => {
 // PATCH /api/applications/:id
 router.patch('/:id', async (req, res) => {
   try {
-    const userId = parseInt(req.body.user_id || req.query.user_id, 10) || 1;
+    const userId = req.user.id;
     const { status, score, archetype, remote, comp_score, keywords, url, tldr } = req.body;
 
-    // Verify ownership
     const existing = await pool.query(
       'SELECT id FROM applications WHERE id = $1 AND user_id = $2',
       [req.params.id, userId]
@@ -208,10 +204,9 @@ router.patch('/:id', async (req, res) => {
 // DELETE /api/applications/:id
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = parseInt(req.query.user_id || req.body?.user_id, 10) || 1;
     const result = await pool.query(
       'DELETE FROM applications WHERE id = $1 AND user_id = $2 RETURNING id',
-      [req.params.id, userId]
+      [req.params.id, req.user.id]
     );
 
     if (!result.rows.length) {

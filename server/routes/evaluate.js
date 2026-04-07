@@ -10,10 +10,9 @@ const router = Router();
 // cv_content is always required.
 router.post('/', async (req, res) => {
   try {
-    let { job_description, job_url, cv_content, user_id } = req.body;
+    let { job_description, job_url, cv_content } = req.body;
 
-    // Phase 1: default user — Phase 3 will inject from auth middleware
-    const userId = user_id || 1;
+    const userId = req.user.id;
 
     if (!cv_content) {
       return res.status(400).json({

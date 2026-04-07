@@ -16,8 +16,11 @@ const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),
     created_at TIMESTAMP DEFAULT NOW()
   );
+
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
 
   CREATE TABLE IF NOT EXISTS cvs (
     id SERIAL PRIMARY KEY,
@@ -63,10 +66,8 @@ const SCHEMA_SQL = `
     BEFORE UPDATE ON cvs
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-  -- Ensure default user exists for Phase 1 (pre-auth)
-  INSERT INTO users (id, email)
-  VALUES (1, 'default@career-ops.app')
-  ON CONFLICT (id) DO NOTHING;
+  -- Advance the users sequence past any manually inserted rows (e.g. seed user id=1)
+  SELECT setval('users_id_seq', GREATEST((SELECT COALESCE(MAX(id), 0) FROM users), 1), true);
 `;
 
 export async function bootstrapSchema() {

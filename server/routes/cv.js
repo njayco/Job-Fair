@@ -3,19 +3,10 @@ import pool from '../db.js';
 
 const router = Router();
 
-// GET /api/cv — get saved CV for default user (user_id = 1)
+// GET /api/cv
 router.get('/', async (req, res) => {
   try {
-    // For Phase 1 (no auth), use a placeholder user_id = 1
-    // Phase 3 will replace this with req.user.id
-    const userId = 1;
-
-    // Ensure user exists
-    await pool.query(
-      `INSERT INTO users (id, email) VALUES ($1, 'default@career-ops.app')
-       ON CONFLICT (id) DO NOTHING`,
-      [userId]
-    );
+    const userId = req.user.id;
 
     const result = await pool.query(
       'SELECT content_md, updated_at FROM cvs WHERE user_id = $1',
@@ -33,7 +24,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// PUT /api/cv — save/update CV markdown
+// PUT /api/cv
 router.put('/', async (req, res) => {
   try {
     const { content_md } = req.body;
@@ -42,14 +33,7 @@ router.put('/', async (req, res) => {
       return res.status(400).json({ error: 'content_md is required' });
     }
 
-    const userId = 1;
-
-    // Ensure user exists
-    await pool.query(
-      `INSERT INTO users (id, email) VALUES ($1, 'default@career-ops.app')
-       ON CONFLICT (id) DO NOTHING`,
-      [userId]
-    );
+    const userId = req.user.id;
 
     const result = await pool.query(
       `INSERT INTO cvs (user_id, content_md)

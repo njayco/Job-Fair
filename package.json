@@ -31,10 +31,13 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
+    "bcrypt": "^6.0.0",
     "clsx": "^2.1.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "drizzle-zod": "^0.8.3",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.7.0",
     "multer": "^2.1.1",
     "p-limit": "^7.3.0",

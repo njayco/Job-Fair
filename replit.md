@@ -21,31 +21,39 @@ An AI-powered job search pipeline — originally a Claude Code CLI tool, being r
 
 ```
 career-ops/
-├── server/                  # Express API backend (Phase 1)
+├── server/                  # Express API backend
 │   ├── index.js             # Main app entry, port 3001
-│   ├── db.js                # PostgreSQL pool
+│   ├── db.js                # PostgreSQL pool + schema bootstrap
 │   ├── package.json         # {"type":"module"} for ESM
 │   ├── lib/
-│   │   └── evaluation.js    # Anthropic API evaluation logic
+│   │   ├── evaluation.js    # Anthropic API evaluation logic
+│   │   └── authMiddleware.js # JWT sign/verify, setAuthCookie, requireAuth
 │   └── routes/
 │       ├── health.js        # GET /api/health
-│       ├── evaluate.js      # POST /api/evaluate
-│       ├── pdf.js           # POST /api/generate-pdf
-│       ├── applications.js  # CRUD /api/applications
-│       └── cv.js            # GET/PUT /api/cv
-├── client/                  # React+Vite frontend (Phase 2)
+│       ├── auth.js          # POST /api/auth/signup|login|logout; GET /api/auth/me
+│       ├── evaluate.js      # POST /api/evaluate (requireAuth)
+│       ├── pdf.js           # POST /api/generate-pdf (requireAuth)
+│       ├── applications.js  # CRUD /api/applications (requireAuth, scoped to user)
+│       └── cv.js            # GET/PUT /api/cv (requireAuth, scoped to user)
+├── client/                  # React+Vite frontend
 │   ├── src/
 │   │   ├── api.ts           # Typed API client for all endpoints
-│   │   ├── App.tsx          # Router with 5 routes
+│   │   ├── App.tsx          # Router — public + ProtectedRoute-wrapped routes
 │   │   ├── index.css        # Tailwind v4 + CSS vars (dark theme)
+│   │   ├── context/
+│   │   │   └── AuthContext.tsx    # User state, login/signup/logout
 │   │   ├── pages/
 │   │   │   ├── LandingPage.tsx    # / — hero + feature cards
+│   │   │   ├── LoginPage.tsx      # /login — sign in form
+│   │   │   ├── SignupPage.tsx     # /signup — create account form
+│   │   │   ├── AccountPage.tsx    # /account — profile + logout
 │   │   │   ├── EvaluatePage.tsx   # /evaluate — CV + job input form
 │   │   │   ├── ResultsPage.tsx    # /results/:id — evaluation report
 │   │   │   ├── PipelinePage.tsx   # /pipeline — application tracker
 │   │   │   └── ReportPage.tsx     # /report/:id — full markdown report
 │   │   └── components/
-│   │       ├── Layout.tsx         # Shared header/nav wrapper
+│   │       ├── Layout.tsx         # Header/nav with auth state (email + logout)
+│   │       ├── ProtectedRoute.tsx # Redirects unauthenticated users to /login
 │   │       └── ui/                # Button, Badge primitives
 │   ├── vite.config.ts       # Port 5000, proxy /api → :3001
 │   └── package.json
@@ -75,13 +83,21 @@ career-ops/
 | GET | /api/cv | Get saved CV markdown |
 | PUT | /api/cv | Save CV markdown |
 
+## Authentication
+
+- **Strategy**: httpOnly JWT cookie (`auth_token`), 30-day expiry, sameSite lax
+- **Token payload**: `{ id, email }`
+- **Auth routes**: `/api/auth/signup`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`
+- **Protected routes**: all `/api/*` except auth routes require valid JWT via `requireAuth` middleware
+- **DB queries**: scoped to `req.user.id` (each user sees only their own data)
+
 ## Database Schema
 
 ```sql
-users (id, email, created_at)
-applications (id, user_id, company, role, score, status, url, report_md, 
+users (id SERIAL, email VARCHAR UNIQUE, password_hash VARCHAR, created_at TIMESTAMP)
+applications (id, user_id → users.id, company, role, score, status, url, report_md, 
               archetype, tldr, remote, comp_score, keywords, created_at, updated_at)
-cvs (id, user_id, content_md, updated_at) -- UNIQUE user_id
+cvs (id, user_id → users.id UNIQUE, content_md, updated_at)
 ```
 
 ## Application Statuses
@@ -110,5 +126,5 @@ cvs (id, user_id, content_md, updated_at) -- UNIQUE user_id
 
 - [x] Phase 1: Backend API (Express + Anthropic + PostgreSQL)
 - [x] Phase 2: Web UI (React + Vite, port 5000)
-- [ ] Phase 3: User Authentication (JWT, email/password)
+- [x] Phase 3: User Authentication (JWT, email/password)
 - [ ] Phase 4: Stripe Payments (subscription tiers)

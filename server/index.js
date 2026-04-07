@@ -1,8 +1,11 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { bootstrapSchema } from './db.js';
+import { requireAuth } from './lib/authMiddleware.js';
 
 import healthRouter from './routes/health.js';
+import authRouter from './routes/auth.js';
 import evaluateRouter from './routes/evaluate.js';
 import pdfRouter from './routes/pdf.js';
 import applicationsRouter from './routes/applications.js';
@@ -12,33 +15,31 @@ const app = express();
 const PORT = process.env.API_PORT || 3001;
 const HOST = '0.0.0.0';
 
-// Middleware
 app.use(cors({
   origin: true,
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser());
 
-// Request logging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
   next();
 });
 
-// Routes
 app.use('/api', healthRouter);
-app.use('/api/evaluate', evaluateRouter);
-app.use('/api/generate-pdf', pdfRouter);
-app.use('/api/applications', applicationsRouter);
-app.use('/api/cv', cvRouter);
+app.use('/api/auth', authRouter);
 
-// 404 handler
+app.use('/api/evaluate', requireAuth, evaluateRouter);
+app.use('/api/generate-pdf', requireAuth, pdfRouter);
+app.use('/api/applications', requireAuth, applicationsRouter);
+app.use('/api/cv', requireAuth, cvRouter);
+
 app.use('/api/*path', (req, res) => {
   res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({
@@ -47,7 +48,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Bootstrap schema then start server
 bootstrapSchema()
   .then(() => {
     app.listen(PORT, HOST, () => {
