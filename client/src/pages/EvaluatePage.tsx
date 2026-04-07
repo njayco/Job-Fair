@@ -2,15 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
-import UpgradePrompt from '../components/UpgradePrompt';
 import { evaluate } from '../api';
 import { FileText, Link as LinkIcon, Loader2 } from 'lucide-react';
-
-interface LimitError {
-  code: string;
-  usageCount: number;
-  freeLimit: number;
-}
 
 export default function EvaluatePage() {
   const navigate = useNavigate();
@@ -19,7 +12,6 @@ export default function EvaluatePage() {
   const [jobDesc, setJobDesc] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [error, setError] = useState('');
-  const [limitError, setLimitError] = useState<LimitError | null>(null);
   const [activeTab, setActiveTab] = useState<'url' | 'desc'>('url');
 
   useEffect(() => {
@@ -41,7 +33,6 @@ export default function EvaluatePage() {
 
     setIsEvaluating(true);
     setError('');
-    setLimitError(null);
 
     try {
       const res = await evaluate({
@@ -52,12 +43,7 @@ export default function EvaluatePage() {
       sessionStorage.setItem(`eval_${res.application_id}`, JSON.stringify(res));
       navigate(`/results/${res.application_id}`);
     } catch (e) {
-      if (e instanceof Error && (e as Error & { code?: string }).code === 'LIMIT_REACHED') {
-        const le = e as Error & { code: string; usageCount: number; freeLimit: number };
-        setLimitError({ code: le.code, usageCount: le.usageCount, freeLimit: le.freeLimit });
-      } else {
-        setError(e instanceof Error ? e.message : 'Evaluation failed');
-      }
+      setError(e instanceof Error ? e.message : 'Evaluation failed');
       setIsEvaluating(false);
     }
   };
@@ -69,13 +55,6 @@ export default function EvaluatePage() {
           <h1 className="text-3xl font-bold font-mono tracking-tight">New Evaluation</h1>
           <p className="text-[var(--color-text-muted)] mt-2">Analyze a job description against your CV to find the perfect fit.</p>
         </div>
-
-        {limitError && (
-          <UpgradePrompt
-            usageCount={limitError.usageCount}
-            freeLimit={limitError.freeLimit}
-          />
-        )}
 
         {error && (
           <div className="p-4 bg-[var(--color-red-indicator)]/10 border border-[var(--color-red-indicator)]/20 rounded text-[var(--color-red-indicator)] font-mono text-sm">
@@ -148,7 +127,7 @@ export default function EvaluatePage() {
                 type="submit"
                 size="lg"
                 className="w-full font-mono text-lg"
-                disabled={isEvaluating || !!limitError}
+                disabled={isEvaluating}
               >
                 {isEvaluating ? (
                   <><Loader2 className="w-5 h-5 animate-spin mr-2" />ANALYZING...</>

@@ -9,8 +9,6 @@ import EvaluatePage from './pages/EvaluatePage';
 import ResultsPage from './pages/ResultsPage';
 import PipelinePage from './pages/PipelinePage';
 import ReportPage from './pages/ReportPage';
-import PricingPage from './pages/PricingPage';
-import BillingPage from './pages/BillingPage';
 
 function App() {
   return (
@@ -20,13 +18,11 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
-          <Route path="/pricing" element={<PricingPage />} />
           <Route path="/evaluate" element={<ProtectedRoute><EvaluatePage /></ProtectedRoute>} />
           <Route path="/results/:id" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
           <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
           <Route path="/report/:id" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
-          <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>

@@ -4,71 +4,6 @@ import pool from '../db.js';
 
 const router = Router();
 
-const FREE_LIMIT = parseInt(process.env.FREE_EVAL_LIMIT || '3', 10);
-
-async function getUserPlan(userId) {
-  const { rows } = await pool.query(
-    'SELECT stripe_customer_id FROM users WHERE id = $1',
-    [userId]
-  );
-  const customerId = rows[0]?.stripe_customer_id;
-  if (!customerId) return 'free';
-
-  try {
-    const subResult = await pool.query(
-      `SELECT id FROM stripe.subscriptions
-       WHERE customer = $1 AND status IN ('active', 'trialing')
-       LIMIT 1`,
-      [customerId]
-    );
-    return subResult.rows.length > 0 ? 'pro' : 'free';
-  } catch {
-    return 'free';
-  }
-}
-
-async function checkUsageLimit(userId) {
-  const month = new Date().toISOString().slice(0, 7);
-  const result = await pool.query(
-    'SELECT evaluation_count FROM usage WHERE user_id = $1 AND month = $2',
-    [userId, month]
-  );
-  const current = result.rows[0]?.evaluation_count || 0;
-  return { current, limitReached: current >= FREE_LIMIT };
-}
-
-/**
- * Atomically increment usage only if the current count is below FREE_LIMIT.
- * Uses a single SQL statement to prevent race conditions where concurrent
- * free-tier requests could exceed the monthly cap.
- * Returns the new count, or null if the limit was already reached.
- */
-async function atomicIncrementUsage(userId) {
-  const month = new Date().toISOString().slice(0, 7);
-  const result = await pool.query(
-    `INSERT INTO usage (user_id, month, evaluation_count)
-     VALUES ($1, $2, 1)
-     ON CONFLICT (user_id, month)
-     DO UPDATE SET evaluation_count = usage.evaluation_count + 1
-     WHERE usage.evaluation_count < $3
-     RETURNING evaluation_count`,
-    [userId, month, FREE_LIMIT]
-  );
-  // If no row was returned, the limit was already reached
-  return result.rows[0]?.evaluation_count ?? null;
-}
-
-async function atomicIncrementUnlimited(userId) {
-  const month = new Date().toISOString().slice(0, 7);
-  await pool.query(
-    `INSERT INTO usage (user_id, month, evaluation_count)
-     VALUES ($1, $2, 1)
-     ON CONFLICT (user_id, month)
-     DO UPDATE SET evaluation_count = usage.evaluation_count + 1`,
-    [userId, month]
-  );
-}
-
 // POST /api/evaluate
 // Body: { job_description?, job_url?, cv_content }
 // Accepts EITHER job_description (raw text) OR job_url (will be fetched), or both.
@@ -78,7 +13,6 @@ router.post('/', async (req, res) => {
     let { job_description, job_url, cv_content } = req.body;
     const userId = req.user.id;
 
-    // Validate inputs before doing anything expensive
     if (!cv_content) {
       return res.status(400).json({
         error: 'cv_content is required. Paste your CV in markdown format.',
@@ -91,24 +25,6 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Check plan and usage limit before the expensive AI call
-    const plan = await getUserPlan(userId);
-
-    if (plan === 'free') {
-      const { current, limitReached } = await checkUsageLimit(userId);
-      if (limitReached) {
-        return res.status(402).json({
-          error: 'Monthly evaluation limit reached',
-          code: 'LIMIT_REACHED',
-          plan: 'free',
-          usageCount: current,
-          freeLimit: FREE_LIMIT,
-          message: `You've used all ${FREE_LIMIT} free evaluations this month. Upgrade to Pro for unlimited evaluations.`,
-        });
-      }
-    }
-
-    // If only a URL was provided, fetch the job description from it
     if (!job_description && job_url) {
       try {
         job_description = await fetchJobDescription(job_url);
@@ -126,35 +42,9 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Run the AI evaluation
     const evaluation = await evaluateJob(job_description, cv_content);
-
-    // Atomically increment usage AFTER successful evaluation.
-    // For free-tier users: the conditional upsert ensures the count cannot exceed
-    // FREE_LIMIT even under concurrent requests (no row returned = limit hit).
-    if (plan === 'free') {
-      const newCount = await atomicIncrementUsage(userId);
-      if (newCount === null) {
-        // Race condition: another request beat us to the last slot; this evaluation
-        // succeeded but we cannot charge it — return limit-reached to the user.
-        return res.status(402).json({
-          error: 'Monthly evaluation limit reached',
-          code: 'LIMIT_REACHED',
-          plan: 'free',
-          usageCount: FREE_LIMIT,
-          freeLimit: FREE_LIMIT,
-          message: `You've used all ${FREE_LIMIT} free evaluations this month. Upgrade to Pro for unlimited evaluations.`,
-        });
-      }
-    } else {
-      // Pro users: track usage without limit enforcement
-      await atomicIncrementUnlimited(userId);
-    }
-
-    // Generate full report markdown
     const reportMd = await generateReportMarkdown(evaluation, job_url);
 
-    // Auto-save to applications table scoped to user
     const globalScore = evaluation.score?.global;
     const keywords = evaluation.keywords || [];
 
