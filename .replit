@@ -75,5 +75,5 @@ STRIPE_PUBLISHABLE_KEY = "pk_live_51T2ip0K40VCZZTFqHrel6KUVlUuO0Y8dVpb6DLiKZewOy
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["node", "server/index.js"]
+run = ["npm", "run", "server"]
 build = ["bash", "-c", "cd client && npm install && npm run build"]

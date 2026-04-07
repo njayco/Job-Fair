@@ -17,7 +17,7 @@ import applicationsRouter from './routes/applications.js';
 import cvRouter from './routes/cv.js';
 
 const app = express();
-const PORT = process.env.API_PORT || 3001;
+const PORT = process.env.PORT || process.env.API_PORT || 3001;
 const HOST = '0.0.0.0';
 
 app.use(cors({
