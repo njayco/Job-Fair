@@ -1,7 +1,7 @@
-modules = ["go-1.21", "nodejs-20", "bash", "web", "postgresql-16"]
+modules = ["go-1.21", "nodejs-20", "bash", "web", "postgresql-16", "python-3.11"]
 [agent]
 expertMode = true
-integrations = ["javascript_anthropic_ai_integrations:2.0.0"]
+integrations = ["javascript_anthropic_ai_integrations:2.0.0", "stripe:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
