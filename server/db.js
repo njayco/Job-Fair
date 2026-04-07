@@ -66,18 +66,6 @@ const SCHEMA_SQL = `
     BEFORE UPDATE ON cvs
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-  -- Stripe columns on users
-  ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255);
-
-  -- Usage tracking for free-tier limits
-  CREATE TABLE IF NOT EXISTS usage (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    month VARCHAR(7) NOT NULL,
-    evaluation_count INTEGER DEFAULT 0,
-    CONSTRAINT usage_user_month UNIQUE (user_id, month)
-  );
-
   -- Advance the users sequence past any manually inserted rows (e.g. seed user id=1)
   SELECT setval('users_id_seq', GREATEST((SELECT COALESCE(MAX(id), 0) FROM users), 1), true);
 `;
