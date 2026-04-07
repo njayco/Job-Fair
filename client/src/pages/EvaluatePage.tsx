@@ -7,11 +7,11 @@ import { FileText, Link as LinkIcon } from 'lucide-react';
 
 const PROGRESS_STAGES = [
   { at: 0,  label: 'Initializing evaluation...' },
-  { at: 8,  label: 'Fetching job description...' },
-  { at: 22, label: 'Parsing CV content...' },
-  { at: 35, label: 'Matching skills to requirements...' },
-  { at: 50, label: 'Running AI analysis...' },
-  { at: 65, label: 'Scoring competency gaps...' },
+  { at: 8,  label: 'Parsing CV content...' },
+  { at: 22, label: 'Matching skills to requirements...' },
+  { at: 35, label: 'Running AI analysis...' },
+  { at: 50, label: 'Scoring competency gaps...' },
+  { at: 65, label: 'Assessing compensation fit...' },
   { at: 78, label: 'Generating interview prep...' },
   { at: 88, label: 'Compiling report...' },
   { at: 95, label: 'Finalizing results...' },
@@ -30,12 +30,9 @@ function useProgress(active: boolean) {
       return;
     }
 
-    // Eased progress: fast early, very slow near 95%
     const tick = (now: number) => {
       if (!startRef.current) startRef.current = now;
-      const elapsed = (now - startRef.current) / 1000; // seconds
-
-      // Curve: approaches 95 asymptotically over ~40s
+      const elapsed = (now - startRef.current) / 1000;
       const target = 95 * (1 - Math.exp(-elapsed / 14));
       setProgress(Math.min(target, 95));
       rafRef.current = requestAnimationFrame(tick);
@@ -46,7 +43,6 @@ function useProgress(active: boolean) {
   }, [active]);
 
   const complete = () => setProgress(100);
-
   return { progress, complete };
 }
 
@@ -57,7 +53,6 @@ export default function EvaluatePage() {
   const [jobDesc, setJobDesc] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'url' | 'desc'>('url');
   const { progress, complete } = useProgress(isEvaluating);
 
   const currentStage = [...PROGRESS_STAGES].reverse().find(s => progress >= s.at) ?? PROGRESS_STAGES[0];
@@ -76,8 +71,7 @@ export default function EvaluatePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cvContent.trim()) { setError('CV content is required'); return; }
-    if (activeTab === 'url' && !jobUrl.trim()) { setError('Job URL is required'); return; }
-    if (activeTab === 'desc' && !jobDesc.trim()) { setError('Job Description is required'); return; }
+    if (!jobDesc.trim()) { setError('Job description is required'); return; }
 
     setIsEvaluating(true);
     setError('');
@@ -85,8 +79,8 @@ export default function EvaluatePage() {
     try {
       const res = await evaluate({
         cv_content: cvContent,
-        job_url: activeTab === 'url' ? jobUrl : undefined,
-        job_description: activeTab === 'desc' ? jobDesc : undefined,
+        job_description: jobDesc,
+        job_url: jobUrl.trim() || undefined,
       });
       complete();
       await new Promise(r => setTimeout(r, 400));
@@ -125,7 +119,7 @@ export default function EvaluatePage() {
               />
             </div>
             <p className="text-xs text-[var(--color-text-muted)] font-mono">
-              This usually takes 20–40 seconds. You can paste the job description instead to skip URL fetching.
+              This usually takes 20–40 seconds.
             </p>
           </div>
         )}
@@ -154,24 +148,10 @@ export default function EvaluatePage() {
               Job Details
             </h2>
 
-            <div className="flex space-x-2 border-b border-[var(--color-border)] mb-4">
-              <button
-                type="button"
-                onClick={() => setActiveTab('url')}
-                className={`px-4 py-2 font-mono text-sm border-b-2 transition-colors ${activeTab === 'url' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
-              >
-                URL
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('desc')}
-                className={`px-4 py-2 font-mono text-sm border-b-2 transition-colors ${activeTab === 'desc' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text)]'}`}
-              >
-                Paste Description
-              </button>
-            </div>
-
-            {activeTab === 'url' ? (
+            <div className="space-y-1">
+              <label className="text-xs font-mono text-[var(--color-text-muted)] uppercase tracking-wider">
+                Job URL <span className="normal-case">(optional — saved for reference)</span>
+              </label>
               <input
                 type="url"
                 value={jobUrl}
@@ -180,7 +160,12 @@ export default function EvaluatePage() {
                 className="w-full font-mono text-sm"
                 disabled={isEvaluating}
               />
-            ) : (
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-mono text-[var(--color-text-muted)] uppercase tracking-wider">
+                Job Description <span className="text-[var(--color-red-indicator)]">*</span>
+              </label>
               <textarea
                 value={jobDesc}
                 onChange={(e) => setJobDesc(e.target.value)}
@@ -188,9 +173,9 @@ export default function EvaluatePage() {
                 className="w-full h-[50vh] font-mono text-sm resize-none bg-[var(--color-bg)]"
                 disabled={isEvaluating}
               />
-            )}
+            </div>
 
-            <div className="pt-4">
+            <div className="pt-2">
               <Button
                 type="submit"
                 size="lg"

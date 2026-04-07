@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { evaluateJob, fetchJobDescription, generateReportMarkdown } from '../lib/evaluation.js';
+import { evaluateJob, generateReportMarkdown } from '../lib/evaluation.js';
 import pool from '../db.js';
 
 const router = Router();
@@ -19,21 +19,10 @@ router.post('/', async (req, res) => {
       });
     }
 
-    if (!job_description && !job_url) {
+    if (!job_description) {
       return res.status(400).json({
-        error: 'Either job_description (text) or job_url is required.',
+        error: 'job_description is required. Paste the full job description text.',
       });
-    }
-
-    if (!job_description && job_url) {
-      try {
-        job_description = await fetchJobDescription(job_url);
-      } catch (fetchErr) {
-        return res.status(422).json({
-          error: `Could not fetch job description from URL: ${fetchErr.message}`,
-          hint: 'Try pasting the job description text directly instead.',
-        });
-      }
     }
 
     if (job_description.trim().length < 50) {
