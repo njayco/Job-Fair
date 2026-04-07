@@ -23,26 +23,27 @@ app.use(cors({
   credentials: true,
 }));
 
-// CRITICAL: Stripe webhook must be registered BEFORE express.json()
-// It needs the raw Buffer body, not parsed JSON
-app.post(
-  '/api/stripe/webhook',
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
-    const signature = req.headers['stripe-signature'];
-    if (!signature) {
-      return res.status(400).json({ error: 'Missing stripe-signature' });
-    }
-    try {
-      const sig = Array.isArray(signature) ? signature[0] : signature;
-      await WebhookHandlers.processWebhook(req.body, sig);
-      res.status(200).json({ received: true });
-    } catch (err) {
-      console.error('Stripe webhook error:', err.message);
-      res.status(400).json({ error: 'Webhook processing error' });
-    }
+// CRITICAL: Stripe webhooks must be registered BEFORE express.json()
+// They need the raw Buffer body, not parsed JSON
+async function handleStripeWebhook(req, res) {
+  const signature = req.headers['stripe-signature'];
+  if (!signature) {
+    return res.status(400).json({ error: 'Missing stripe-signature' });
   }
-);
+  try {
+    const sig = Array.isArray(signature) ? signature[0] : signature;
+    await WebhookHandlers.processWebhook(req.body, sig);
+    res.status(200).json({ received: true });
+  } catch (err) {
+    console.error('Stripe webhook error:', err.message);
+    res.status(400).json({ error: 'Webhook processing error' });
+  }
+}
+
+// Primary webhook path (registered by stripe-replit-sync)
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+// Alias — conventional billing-namespaced webhook path
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

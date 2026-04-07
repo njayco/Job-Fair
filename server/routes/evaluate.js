@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { evaluateJob, fetchJobDescription, generateReportMarkdown } from '../lib/evaluation.js';
 import pool from '../db.js';
-import { getStripeSync } from '../stripeClient.js';
 
 const router = Router();
 

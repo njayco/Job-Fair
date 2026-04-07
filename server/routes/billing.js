@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
-import { getUncachableStripeClient, getStripePublishableKey, getStripeSync } from '../stripeClient.js';
+import { getUncachableStripeClient } from '../stripeClient.js';
 
 const router = Router();
 
@@ -33,15 +33,13 @@ async function getOrCreateCustomer(userId, email) {
 
 async function getUserPlan(userId) {
   const { rows } = await pool.query(
-    `SELECT stripe_customer_id FROM users WHERE id = $1`,
+    'SELECT stripe_customer_id FROM users WHERE id = $1',
     [userId]
   );
   const customerId = rows[0]?.stripe_customer_id;
   if (!customerId) return { plan: 'free', status: null, subscription: null };
 
   try {
-    const sync = await getStripeSync();
-    const db = sync.pool || pool;
     const subResult = await pool.query(
       `SELECT s.id, s.status, s.current_period_end, s.cancel_at_period_end
        FROM stripe.subscriptions s
@@ -56,7 +54,7 @@ async function getUserPlan(userId) {
       const sub = subResult.rows[0];
       return { plan: 'pro', status: sub.status, subscription: sub };
     }
-  } catch (err) {
+  } catch {
     // stripe schema not ready yet or no subscriptions
   }
 
@@ -97,17 +95,8 @@ router.get('/status', async (req, res) => {
   }
 });
 
-// GET /api/billing/publishable-key
-router.get('/publishable-key', async (req, res) => {
-  try {
-    const key = await getStripePublishableKey();
-    res.json({ publishableKey: key });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to get publishable key' });
-  }
-});
-
 // POST /api/billing/checkout — create Stripe Checkout session
+// priceId is validated server-side against our own active prices in the DB
 router.post('/checkout', async (req, res) => {
   try {
     const userId = req.user.id;
@@ -115,6 +104,17 @@ router.post('/checkout', async (req, res) => {
 
     if (!priceId) {
       return res.status(400).json({ error: 'priceId is required' });
+    }
+
+    // Validate priceId against our own active prices to prevent tampering
+    const priceCheck = await pool.query(
+      `SELECT p.id FROM stripe.prices p
+       JOIN stripe.products pr ON pr.id = p.product
+       WHERE p.id = $1 AND p.active = true AND pr.active = true`,
+      [priceId]
+    );
+    if (priceCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid price ID' });
     }
 
     const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
@@ -167,24 +167,6 @@ router.post('/portal', async (req, res) => {
   } catch (err) {
     console.error('POST /api/billing/portal error:', err);
     res.status(500).json({ error: 'Failed to create portal session' });
-  }
-});
-
-// GET /api/billing/prices — list active prices for the Pro plan
-router.get('/prices', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT pr.id as price_id, pr.unit_amount, pr.currency, pr.recurring,
-             p.id as product_id, p.name as product_name, p.description as product_description
-      FROM stripe.prices pr
-      JOIN stripe.products p ON p.id = pr.product
-      WHERE pr.active = true AND p.active = true
-      ORDER BY pr.unit_amount ASC
-    `);
-    res.json({ prices: result.rows });
-  } catch (err) {
-    // Stripe schema not ready yet
-    res.json({ prices: [] });
   }
 });
 

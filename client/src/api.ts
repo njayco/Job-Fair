@@ -200,11 +200,15 @@ export async function evaluate(params: {
   });
   const data = await res.json();
   if (!res.ok) {
-    const err: any = new Error(data.message || data.error || 'Evaluation failed');
-    err.code = data.code;
-    err.usageCount = data.usageCount;
-    err.freeLimit = data.freeLimit;
-    throw err;
+    const evalError = Object.assign(
+      new Error(data.message || data.error || 'Evaluation failed'),
+      {
+        code: data.code as string | undefined,
+        usageCount: data.usageCount as number | undefined,
+        freeLimit: data.freeLimit as number | undefined,
+      }
+    );
+    throw evalError;
   }
   return data;
 }

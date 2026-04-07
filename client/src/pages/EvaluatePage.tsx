@@ -50,9 +50,10 @@ export default function EvaluatePage() {
       });
       sessionStorage.setItem(`eval_${res.application_id}`, JSON.stringify(res));
       navigate(`/results/${res.application_id}`);
-    } catch (e: any) {
-      if (e?.code === 'LIMIT_REACHED') {
-        setLimitError({ code: e.code, usageCount: e.usageCount, freeLimit: e.freeLimit });
+    } catch (e) {
+      if (e instanceof Error && (e as Error & { code?: string }).code === 'LIMIT_REACHED') {
+        const le = e as Error & { code: string; usageCount: number; freeLimit: number };
+        setLimitError({ code: le.code, usageCount: le.usageCount, freeLimit: le.freeLimit });
       } else {
         setError(e instanceof Error ? e.message : 'Evaluation failed');
       }
