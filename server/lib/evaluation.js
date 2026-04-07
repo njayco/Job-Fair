@@ -205,68 +205,95 @@ Return this exact JSON structure:
 }`;
 }
 
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Upgrade-Insecure-Requests': '1',
+};
+
+async function fetchWithBrowser(url) {
+  const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+
+  const response = await fetch(url, {
+    headers: BROWSER_HEADERS,
+    redirect: 'manual',
+    signal: AbortSignal.timeout(20000),
+  });
+
+  // Handle one redirect hop safely
+  if (response.status >= 300 && response.status < 400) {
+    const redirectUrl = response.headers.get('location');
+    if (!redirectUrl) throw new Error('Server redirected without a Location header.');
+    const absoluteRedirect = new URL(redirectUrl, url).toString();
+    await validateAndResolveUrl(absoluteRedirect);
+    const redirected = await fetch(absoluteRedirect, {
+      headers: BROWSER_HEADERS,
+      redirect: 'follow',
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!redirected.ok) throw new Error(`HTTP ${redirected.status}`);
+    const raw = await redirected.text();
+    if (raw.length > MAX_RESPONSE_BYTES) throw new Error('TOO_LARGE');
+    return raw;
+  }
+
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const html = await response.text();
+  if (html.length > MAX_RESPONSE_BYTES) throw new Error('TOO_LARGE');
+  return html;
+}
+
+async function fetchWithJina(url) {
+  // Jina Reader converts any URL to clean readable text — great for JS-heavy job boards
+  const jinaUrl = `https://r.jina.ai/${url}`;
+  const response = await fetch(jinaUrl, {
+    headers: {
+      'Accept': 'text/plain',
+      'X-No-Cache': 'true',
+    },
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) throw new Error(`Jina reader returned HTTP ${response.status}`);
+  const text = await response.text();
+  if (!text || text.length < 100) throw new Error('Jina reader returned no content');
+  return text.slice(0, 8000);
+}
+
 export async function fetchJobDescription(url) {
   // Validate URL and guard against SSRF before making any network request
   await validateAndResolveUrl(url);
 
-  const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2 MB max
+  let html;
 
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; CareerOps/1.0)',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    },
-    // Do NOT follow redirects automatically — re-validate redirect targets
-    redirect: 'manual',
-    signal: AbortSignal.timeout(15000),
-  });
-
-  // Handle redirects safely: validate the redirect destination before following
-  if (response.status >= 300 && response.status < 400) {
-    const redirectUrl = response.headers.get('location');
-    if (!redirectUrl) {
-      throw new Error('Server redirected without a Location header.');
-    }
-    // Resolve relative redirect against original URL
-    const absoluteRedirect = new URL(redirectUrl, url).toString();
-    await validateAndResolveUrl(absoluteRedirect);
-    // Follow the validated redirect (one hop only)
-    const redirected = await fetch(absoluteRedirect, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; CareerOps/1.0)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      redirect: 'error',
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!redirected.ok) {
-      throw new Error(`Failed to fetch job URL after redirect: HTTP ${redirected.status}`);
-    }
-    // Check content-type
-    const ct = redirected.headers.get('content-type') || '';
-    if (!ct.includes('text/html') && !ct.includes('text/plain') && !ct.includes('application/xhtml')) {
-      throw new Error('Job URL does not appear to contain readable text content.');
-    }
-    const raw = await redirected.text();
-    if (raw.length > MAX_RESPONSE_BYTES) {
+  // Strategy 1: fast fetch with realistic browser headers
+  try {
+    html = await fetchWithBrowser(url);
+  } catch (err) {
+    if (err.message === 'TOO_LARGE') {
       throw new Error('Job URL response is too large. Please paste the job description directly.');
     }
-    return extractTextFromHtml(raw);
-  }
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch job URL: HTTP ${response.status}`);
-  }
-
-  // Check content-type
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('text/html') && !contentType.includes('text/plain') && !contentType.includes('application/xhtml')) {
-    throw new Error('Job URL does not appear to contain readable text content. Please paste the job description directly.');
-  }
-
-  const html = await response.text();
-  if (html.length > MAX_RESPONSE_BYTES) {
-    throw new Error('Job URL response is too large. Please paste the job description directly.');
+    // Strategy 2: blocked by anti-bot — fall back to Jina reader
+    const blocked = err.message.includes('403') || err.message.includes('401') ||
+      err.message.includes('429') || err.message.includes('blocked') ||
+      err.message.includes('forbidden');
+    if (blocked) {
+      try {
+        return await fetchWithJina(url);
+      } catch {
+        throw new Error(
+          'This job site blocks automated access. Please paste the job description text directly instead.'
+        );
+      }
+    } else {
+      throw new Error(`Could not fetch job URL: ${err.message}. Try pasting the job description directly.`);
+    }
   }
 
   return extractTextFromHtml(html);
