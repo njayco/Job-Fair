@@ -2,47 +2,44 @@ import { getStripeSync, getUncachableStripeClient } from './stripeClient.js';
 import pool from './db.js';
 
 /**
- * Handle checkout.session.completed — activate customer record
+ * Handle checkout.session.completed — ensure customer ID is linked to user account
  */
 async function handleCheckoutSessionCompleted(event) {
   const session = event.data.object;
   const customerId = session.customer;
   if (!customerId) return;
 
-  // Ensure the customer ID is linked in our users table if we know this customer
+  // If not yet linked by ID, try linking by email
   const existing = await pool.query(
     'SELECT id FROM users WHERE stripe_customer_id = $1',
     [customerId]
   );
   if (existing.rows.length === 0 && session.customer_email) {
-    // Associate customer with user account by email
     await pool.query(
       'UPDATE users SET stripe_customer_id = $1 WHERE email = $2 AND stripe_customer_id IS NULL',
       [customerId, session.customer_email]
     );
   }
 
-  console.log(`checkout.session.completed for customer ${customerId}`);
+  console.log(`checkout.session.completed: customer ${customerId} linked`);
 }
 
 /**
- * Handle customer.subscription.deleted — subscription cancelled/expired
- * The stripe.subscriptions table will be updated by stripe-replit-sync.
- * We log the event for audit purposes.
+ * Handle customer.subscription.deleted — subscription cancelled or expired.
+ * stripe-replit-sync updates stripe.subscriptions status; we log for audit.
  */
 async function handleSubscriptionDeleted(event) {
   const subscription = event.data.object;
-  console.log(`customer.subscription.deleted: sub ${subscription.id} for customer ${subscription.customer}`);
+  console.log(`customer.subscription.deleted: sub ${subscription.id} customer ${subscription.customer}`);
 }
 
 /**
- * Handle invoice.payment_failed — payment failure notification
- * stripe-replit-sync updates stripe.subscriptions status to 'past_due'.
- * We log and can extend with email notification hooks.
+ * Handle invoice.payment_failed — payment failure.
+ * stripe-replit-sync marks subscription past_due; we log for audit.
  */
 async function handleInvoicePaymentFailed(event) {
   const invoice = event.data.object;
-  console.log(`invoice.payment_failed: invoice ${invoice.id} for customer ${invoice.customer}`);
+  console.log(`invoice.payment_failed: invoice ${invoice.id} customer ${invoice.customer}`);
 }
 
 export class WebhookHandlers {
@@ -55,35 +52,39 @@ export class WebhookHandlers {
       );
     }
 
-    // Let stripe-replit-sync handle schema sync for all events
+    // stripe-replit-sync handles schema sync for all events
     const sync = await getStripeSync();
     await sync.processWebhook(payload, signature);
 
-    // Additionally parse and handle app-level lifecycle events
-    try {
-      const stripe = await getUncachableStripeClient();
-      const event = stripe.webhooks.constructEventAsyncCallback
-        ? await stripe.webhooks.constructEventAsync(payload, signature, process.env.STRIPE_WEBHOOK_SECRET || '')
-        : stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET || '');
+    // Additionally handle app-level lifecycle events
+    // Parse the event using the Stripe SDK for type safety
+    const stripe = await getUncachableStripeClient();
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
 
-      switch (event.type) {
-        case 'checkout.session.completed':
-          await handleCheckoutSessionCompleted(event);
-          break;
-        case 'customer.subscription.deleted':
-          await handleSubscriptionDeleted(event);
-          break;
-        case 'invoice.payment_failed':
-          await handleInvoicePaymentFailed(event);
-          break;
-        default:
-          // Event handled by stripe-replit-sync schema sync only
-          break;
-      }
-    } catch {
-      // Signature verification failures or unknown events are already caught by sync.processWebhook
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+    } catch (err) {
+      // Signature verification failure — log and let sync result stand
+      console.error('Stripe webhook signature verification failed:', err.message);
+      return;
     }
 
-    console.log(`Received webhook ${payload.length} bytes`);
+    switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutSessionCompleted(event);
+        break;
+      case 'customer.subscription.deleted':
+        await handleSubscriptionDeleted(event);
+        break;
+      case 'invoice.payment_failed':
+        await handleInvoicePaymentFailed(event);
+        break;
+      default:
+        // All other events handled by stripe-replit-sync schema sync only
+        break;
+    }
+
+    console.log(`Webhook processed: ${event.type} (${event.id})`);
   }
 }

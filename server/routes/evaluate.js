@@ -27,32 +27,18 @@ async function getUserPlan(userId) {
   }
 }
 
-async function checkAndIncrementUsage(userId, plan) {
+async function checkUsageLimit(userId) {
   const month = new Date().toISOString().slice(0, 7);
-
-  if (plan === 'pro') {
-    // Still track but don't enforce
-    await pool.query(
-      `INSERT INTO usage (user_id, month, evaluation_count)
-       VALUES ($1, $2, 1)
-       ON CONFLICT (user_id, month)
-       DO UPDATE SET evaluation_count = usage.evaluation_count + 1`,
-      [userId, month]
-    );
-    return { allowed: true, usageCount: null };
-  }
-
-  // Free tier: check limit before incrementing
   const result = await pool.query(
     'SELECT evaluation_count FROM usage WHERE user_id = $1 AND month = $2',
     [userId, month]
   );
   const current = result.rows[0]?.evaluation_count || 0;
+  return { current, limitReached: current >= FREE_LIMIT };
+}
 
-  if (current >= FREE_LIMIT) {
-    return { allowed: false, usageCount: current };
-  }
-
+async function incrementUsage(userId) {
+  const month = new Date().toISOString().slice(0, 7);
   await pool.query(
     `INSERT INTO usage (user_id, month, evaluation_count)
      VALUES ($1, $2, 1)
@@ -60,8 +46,6 @@ async function checkAndIncrementUsage(userId, plan) {
      DO UPDATE SET evaluation_count = usage.evaluation_count + 1`,
     [userId, month]
   );
-
-  return { allowed: true, usageCount: current + 1 };
 }
 
 // POST /api/evaluate
@@ -71,24 +55,9 @@ async function checkAndIncrementUsage(userId, plan) {
 router.post('/', async (req, res) => {
   try {
     let { job_description, job_url, cv_content } = req.body;
-
     const userId = req.user.id;
 
-    // Check usage limits before doing the expensive AI call
-    const plan = await getUserPlan(userId);
-    const usage = await checkAndIncrementUsage(userId, plan);
-
-    if (!usage.allowed) {
-      return res.status(402).json({
-        error: 'Monthly evaluation limit reached',
-        code: 'LIMIT_REACHED',
-        plan: 'free',
-        usageCount: usage.usageCount,
-        freeLimit: FREE_LIMIT,
-        message: `You've used all ${FREE_LIMIT} free evaluations this month. Upgrade to Pro for unlimited evaluations.`,
-      });
-    }
-
+    // Validate inputs before doing anything expensive
     if (!cv_content) {
       return res.status(400).json({
         error: 'cv_content is required. Paste your CV in markdown format.',
@@ -99,6 +68,23 @@ router.post('/', async (req, res) => {
       return res.status(400).json({
         error: 'Either job_description (text) or job_url is required.',
       });
+    }
+
+    // Check plan and usage limit before the expensive AI call
+    const plan = await getUserPlan(userId);
+
+    if (plan === 'free') {
+      const { current, limitReached } = await checkUsageLimit(userId);
+      if (limitReached) {
+        return res.status(402).json({
+          error: 'Monthly evaluation limit reached',
+          code: 'LIMIT_REACHED',
+          plan: 'free',
+          usageCount: current,
+          freeLimit: FREE_LIMIT,
+          message: `You've used all ${FREE_LIMIT} free evaluations this month. Upgrade to Pro for unlimited evaluations.`,
+        });
+      }
     }
 
     // If only a URL was provided, fetch the job description from it
@@ -121,6 +107,9 @@ router.post('/', async (req, res) => {
 
     // Run the AI evaluation
     const evaluation = await evaluateJob(job_description, cv_content);
+
+    // Only increment usage AFTER a successful evaluation
+    await incrementUsage(userId);
 
     // Generate full report markdown
     const reportMd = await generateReportMarkdown(evaluation, job_url);
