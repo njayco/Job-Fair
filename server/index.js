@@ -3,6 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { readFileSync } from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -47,9 +48,19 @@ app.use('/api/*path', (req, res) => {
 
 // Serve the built React app for all non-API routes (client-side routing)
 const clientDist = join(__dirname, '..', 'client', 'dist');
-app.use(express.static(clientDist));
+app.use(express.static(clientDist, { index: false }));
 app.use((req, res) => {
-  res.sendFile(join(clientDist, 'index.html'));
+  const indexPath = join(clientDist, 'index.html');
+  try {
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const appUrl = `${proto}://${host}`;
+    const html = readFileSync(indexPath, 'utf8').replaceAll('__APP_URL__', appUrl);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch {
+    res.sendFile(indexPath);
+  }
 });
 
 app.use((err, req, res, next) => {
