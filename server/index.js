@@ -1,6 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 import { bootstrapSchema } from './db.js';
 import { requireAuth } from './lib/authMiddleware.js';
 import { WebhookHandlers } from './webhookHandlers.js';
@@ -68,6 +73,13 @@ app.use('/api/billing', requireAuth, billingRouter);
 
 app.use('/api/*path', (req, res) => {
   res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
+});
+
+// Serve the built React app for all non-API routes (client-side routing)
+const clientDist = join(__dirname, '..', 'client', 'dist');
+app.use(express.static(clientDist));
+app.use((req, res) => {
+  res.sendFile(join(clientDist, 'index.html'));
 });
 
 app.use((err, req, res, next) => {

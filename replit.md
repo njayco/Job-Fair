@@ -14,8 +14,12 @@ An AI-powered job search pipeline — originally a Claude Code CLI tool, being r
 | Workflow | Command | Port | Description |
 |----------|---------|------|-------------|
 | Start application | `bash run-dashboard.sh` | — | Go TUI dashboard (console) |
-| Start API | `npm run server` | 3001 | Express REST API backend |
-| Start client | `cd client && npm run dev` | 5000 | Vite+React frontend (webview) |
+| Start API | `npm run server` | 3001 | Express REST API + built React app (full app) |
+| Start client | `cd client && npm run dev` | 5000 | Vite+React frontend with HMR (dev only) |
+
+**Primary access point**: Port 3001 serves the full app (API + built React frontend). Use this for production-like testing.  
+**Dev with HMR**: Port 5000 (Vite) hot-reloads React changes; API calls proxy to port 3001.  
+After changing React code, run `cd client && npm run build` to update the Express-served build.
 
 ## Project Structure
 
