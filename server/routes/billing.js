@@ -106,15 +106,19 @@ router.post('/checkout', async (req, res) => {
       return res.status(400).json({ error: 'priceId is required' });
     }
 
-    // Validate priceId against our own active prices to prevent tampering
-    const priceCheck = await pool.query(
-      `SELECT p.id FROM stripe.prices p
-       JOIN stripe.products pr ON pr.id = p.product
-       WHERE p.id = $1 AND p.active = true AND pr.active = true`,
-      [priceId]
-    );
-    if (priceCheck.rows.length === 0) {
-      return res.status(400).json({ error: 'Invalid price ID' });
+    // Validate priceId: must be either in our synced Stripe prices table
+    // or match the operator-configured PRO_PRICE_ID fallback.
+    const configuredPriceId = process.env.PRO_PRICE_ID || null;
+    if (priceId !== configuredPriceId) {
+      const priceCheck = await pool.query(
+        `SELECT p.id FROM stripe.prices p
+         JOIN stripe.products pr ON pr.id = p.product
+         WHERE p.id = $1 AND p.active = true AND pr.active = true`,
+        [priceId]
+      );
+      if (priceCheck.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid price ID' });
+      }
     }
 
     const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);

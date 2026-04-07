@@ -37,7 +37,28 @@ async function checkUsageLimit(userId) {
   return { current, limitReached: current >= FREE_LIMIT };
 }
 
-async function incrementUsage(userId) {
+/**
+ * Atomically increment usage only if the current count is below FREE_LIMIT.
+ * Uses a single SQL statement to prevent race conditions where concurrent
+ * free-tier requests could exceed the monthly cap.
+ * Returns the new count, or null if the limit was already reached.
+ */
+async function atomicIncrementUsage(userId) {
+  const month = new Date().toISOString().slice(0, 7);
+  const result = await pool.query(
+    `INSERT INTO usage (user_id, month, evaluation_count)
+     VALUES ($1, $2, 1)
+     ON CONFLICT (user_id, month)
+     DO UPDATE SET evaluation_count = usage.evaluation_count + 1
+     WHERE usage.evaluation_count < $3
+     RETURNING evaluation_count`,
+    [userId, month, FREE_LIMIT]
+  );
+  // If no row was returned, the limit was already reached
+  return result.rows[0]?.evaluation_count ?? null;
+}
+
+async function atomicIncrementUnlimited(userId) {
   const month = new Date().toISOString().slice(0, 7);
   await pool.query(
     `INSERT INTO usage (user_id, month, evaluation_count)
@@ -108,8 +129,27 @@ router.post('/', async (req, res) => {
     // Run the AI evaluation
     const evaluation = await evaluateJob(job_description, cv_content);
 
-    // Only increment usage AFTER a successful evaluation
-    await incrementUsage(userId);
+    // Atomically increment usage AFTER successful evaluation.
+    // For free-tier users: the conditional upsert ensures the count cannot exceed
+    // FREE_LIMIT even under concurrent requests (no row returned = limit hit).
+    if (plan === 'free') {
+      const newCount = await atomicIncrementUsage(userId);
+      if (newCount === null) {
+        // Race condition: another request beat us to the last slot; this evaluation
+        // succeeded but we cannot charge it — return limit-reached to the user.
+        return res.status(402).json({
+          error: 'Monthly evaluation limit reached',
+          code: 'LIMIT_REACHED',
+          plan: 'free',
+          usageCount: FREE_LIMIT,
+          freeLimit: FREE_LIMIT,
+          message: `You've used all ${FREE_LIMIT} free evaluations this month. Upgrade to Pro for unlimited evaluations.`,
+        });
+      }
+    } else {
+      // Pro users: track usage without limit enforcement
+      await atomicIncrementUnlimited(userId);
+    }
 
     // Generate full report markdown
     const reportMd = await generateReportMarkdown(evaluation, job_url);

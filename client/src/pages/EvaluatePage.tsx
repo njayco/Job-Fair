@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
+import UpgradePrompt from '../components/UpgradePrompt';
 import { evaluate } from '../api';
-import { FileText, Link as LinkIcon, Loader2, Zap } from 'lucide-react';
+import { FileText, Link as LinkIcon, Loader2 } from 'lucide-react';
 
 interface LimitError {
   code: string;
@@ -70,21 +71,10 @@ export default function EvaluatePage() {
         </div>
 
         {limitError && (
-          <div className="p-5 bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/30 rounded-xl space-y-3">
-            <div className="font-semibold flex items-center gap-2">
-              <Zap className="w-5 h-5 text-[var(--color-primary)]" />
-              Monthly limit reached
-            </div>
-            <p className="text-sm text-[var(--color-text-muted)]">
-              You've used all {limitError.freeLimit} free evaluations this month. Upgrade to Pro for unlimited access.
-            </p>
-            <Link to="/pricing">
-              <Button size="sm" className="gap-2 font-mono">
-                <Zap className="w-3 h-3" />
-                UPGRADE TO PRO — $19/MONTH
-              </Button>
-            </Link>
-          </div>
+          <UpgradePrompt
+            usageCount={limitError.usageCount}
+            freeLimit={limitError.freeLimit}
+          />
         )}
 
         {error && (
