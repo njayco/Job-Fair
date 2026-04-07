@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { evaluate } from '../api';
-import { FileText, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { FileText, Link as LinkIcon, Loader2, Zap } from 'lucide-react';
+
+interface LimitError {
+  code: string;
+  usageCount: number;
+  freeLimit: number;
+}
 
 export default function EvaluatePage() {
   const navigate = useNavigate();
@@ -12,13 +18,12 @@ export default function EvaluatePage() {
   const [jobDesc, setJobDesc] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [error, setError] = useState('');
+  const [limitError, setLimitError] = useState<LimitError | null>(null);
   const [activeTab, setActiveTab] = useState<'url' | 'desc'>('url');
 
   useEffect(() => {
     const savedCv = localStorage.getItem('career_ops_cv');
-    if (savedCv) {
-      setCvContent(savedCv);
-    }
+    if (savedCv) setCvContent(savedCv);
   }, []);
 
   const handleCvChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -29,21 +34,13 @@ export default function EvaluatePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cvContent.trim()) {
-      setError('CV content is required');
-      return;
-    }
-    if (activeTab === 'url' && !jobUrl.trim()) {
-      setError('Job URL is required');
-      return;
-    }
-    if (activeTab === 'desc' && !jobDesc.trim()) {
-      setError('Job Description is required');
-      return;
-    }
+    if (!cvContent.trim()) { setError('CV content is required'); return; }
+    if (activeTab === 'url' && !jobUrl.trim()) { setError('Job URL is required'); return; }
+    if (activeTab === 'desc' && !jobDesc.trim()) { setError('Job Description is required'); return; }
 
     setIsEvaluating(true);
     setError('');
+    setLimitError(null);
 
     try {
       const res = await evaluate({
@@ -53,8 +50,12 @@ export default function EvaluatePage() {
       });
       sessionStorage.setItem(`eval_${res.application_id}`, JSON.stringify(res));
       navigate(`/results/${res.application_id}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Evaluation failed');
+    } catch (e: any) {
+      if (e?.code === 'LIMIT_REACHED') {
+        setLimitError({ code: e.code, usageCount: e.usageCount, freeLimit: e.freeLimit });
+      } else {
+        setError(e instanceof Error ? e.message : 'Evaluation failed');
+      }
       setIsEvaluating(false);
     }
   };
@@ -66,6 +67,24 @@ export default function EvaluatePage() {
           <h1 className="text-3xl font-bold font-mono tracking-tight">New Evaluation</h1>
           <p className="text-[var(--color-text-muted)] mt-2">Analyze a job description against your CV to find the perfect fit.</p>
         </div>
+
+        {limitError && (
+          <div className="p-5 bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/30 rounded-xl space-y-3">
+            <div className="font-semibold flex items-center gap-2">
+              <Zap className="w-5 h-5 text-[var(--color-primary)]" />
+              Monthly limit reached
+            </div>
+            <p className="text-sm text-[var(--color-text-muted)]">
+              You've used all {limitError.freeLimit} free evaluations this month. Upgrade to Pro for unlimited access.
+            </p>
+            <Link to="/pricing">
+              <Button size="sm" className="gap-2 font-mono">
+                <Zap className="w-3 h-3" />
+                UPGRADE TO PRO — $19/MONTH
+              </Button>
+            </Link>
+          </div>
+        )}
 
         {error && (
           <div className="p-4 bg-[var(--color-red-indicator)]/10 border border-[var(--color-red-indicator)]/20 rounded text-[var(--color-red-indicator)] font-mono text-sm">
@@ -85,7 +104,7 @@ export default function EvaluatePage() {
             <textarea
               value={cvContent}
               onChange={handleCvChange}
-              placeholder="# Jane Doe\n\nSenior AI Engineer..."
+              placeholder="# Jane Doe&#10;&#10;Senior AI Engineer..."
               className="w-full h-[60vh] font-mono text-sm resize-none bg-[var(--color-bg)]"
               disabled={isEvaluating}
             />
@@ -96,7 +115,7 @@ export default function EvaluatePage() {
               <LinkIcon className="w-5 h-5 text-[var(--color-accent)]" />
               Job Details
             </h2>
-            
+
             <div className="flex space-x-2 border-b border-[var(--color-border)] mb-4">
               <button
                 type="button"
@@ -134,20 +153,15 @@ export default function EvaluatePage() {
             )}
 
             <div className="pt-4">
-              <Button 
-                type="submit" 
-                size="lg" 
+              <Button
+                type="submit"
+                size="lg"
                 className="w-full font-mono text-lg"
-                disabled={isEvaluating}
+                disabled={isEvaluating || !!limitError}
               >
                 {isEvaluating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    ANALYZING...
-                  </>
-                ) : (
-                  'EVALUATE FIT'
-                )}
+                  <><Loader2 className="w-5 h-5 animate-spin mr-2" />ANALYZING...</>
+                ) : 'EVALUATE FIT'}
               </Button>
             </div>
           </div>

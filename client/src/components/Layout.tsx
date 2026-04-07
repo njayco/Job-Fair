@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Terminal, LayoutDashboard, FileText, User, LogOut } from 'lucide-react';
+import { Terminal, LayoutDashboard, FileText, User, LogOut, CreditCard } from 'lucide-react';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -31,6 +31,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <FileText className="w-4 h-4" />
                     New Evaluation
                   </Link>
+                  <Link to="/billing" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
+                    <CreditCard className="w-4 h-4" />
+                    <span className="hidden sm:inline">Billing</span>
+                  </Link>
                   <Link to="/account" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
                     <User className="w-4 h-4" />
                     <span className="hidden sm:inline max-w-[140px] truncate">{user.email}</span>
@@ -45,6 +49,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </>
               ) : (
                 <>
+                  <Link to="/pricing" className="text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
+                    Pricing
+                  </Link>
                   <Link to="/login" className="text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
                     Sign In
                   </Link>

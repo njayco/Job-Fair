@@ -34,7 +34,9 @@ career-ops/
 │       ├── evaluate.js      # POST /api/evaluate (requireAuth)
 │       ├── pdf.js           # POST /api/generate-pdf (requireAuth)
 │       ├── applications.js  # CRUD /api/applications (requireAuth, scoped to user)
-│       └── cv.js            # GET/PUT /api/cv (requireAuth, scoped to user)
+│       ├── cv.js            # GET/PUT /api/cv (requireAuth, scoped to user)
+│       ├── billing.js       # Checkout/portal/status (requireAuth)
+│       └── billing-public.js # GET /api/billing/prices|publishable-key (no auth)
 ├── client/                  # React+Vite frontend
 │   ├── src/
 │   │   ├── api.ts           # Typed API client for all endpoints
@@ -50,7 +52,9 @@ career-ops/
 │   │   │   ├── EvaluatePage.tsx   # /evaluate — CV + job input form
 │   │   │   ├── ResultsPage.tsx    # /results/:id — evaluation report
 │   │   │   ├── PipelinePage.tsx   # /pipeline — application tracker
-│   │   │   └── ReportPage.tsx     # /report/:id — full markdown report
+│   │   │   ├── ReportPage.tsx     # /report/:id — full markdown report
+│   │   │   ├── PricingPage.tsx    # /pricing — public pricing tiers (Free/$19 Pro)
+│   │   │   └── BillingPage.tsx    # /billing — manage subscription + Stripe portal
 │   │   └── components/
 │   │       ├── Layout.tsx         # Header/nav with auth state (email + logout)
 │   │       ├── ProtectedRoute.tsx # Redirects unauthenticated users to /login
@@ -127,4 +131,4 @@ cvs (id, user_id → users.id UNIQUE, content_md, updated_at)
 - [x] Phase 1: Backend API (Express + Anthropic + PostgreSQL)
 - [x] Phase 2: Web UI (React + Vite, port 5000)
 - [x] Phase 3: User Authentication (JWT, email/password)
-- [ ] Phase 4: Stripe Payments (subscription tiers)
+- [x] Phase 4: Stripe Payments (Free tier 3 evals/month, $19/month Pro via Stripe Checkout)

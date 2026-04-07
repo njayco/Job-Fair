@@ -195,10 +195,17 @@ export async function evaluate(params: {
   const res = await fetch('/api/evaluate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify(params),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Evaluation failed');
+  if (!res.ok) {
+    const err: any = new Error(data.message || data.error || 'Evaluation failed');
+    err.code = data.code;
+    err.usageCount = data.usageCount;
+    err.freeLimit = data.freeLimit;
+    throw err;
+  }
   return data;
 }
 
