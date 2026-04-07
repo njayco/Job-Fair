@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "AI-powered job search pipeline built on Claude Code",
   "scripts": {
+    "build": "cd client && npm install && npm run build",
+    "start": "node server/index.js",
     "server": "node server/index.js",
     "server:dev": "node --watch server/index.js",
     "verify": "node verify-pipeline.mjs",
