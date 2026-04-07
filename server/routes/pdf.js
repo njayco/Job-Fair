@@ -364,8 +364,8 @@ router.post('/', async (req, res) => {
 
     if (application_id) {
       await pool.query(
-        'UPDATE applications SET updated_at = NOW() WHERE id = $1',
-        [parseInt(application_id, 10)]
+        'UPDATE applications SET updated_at = NOW() WHERE id = $1 AND user_id = $2',
+        [parseInt(application_id, 10), req.user.id]
       ).catch(() => {});
     }
 
