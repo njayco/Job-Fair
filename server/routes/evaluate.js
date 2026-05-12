@@ -5,12 +5,11 @@ import pool from '../db.js';
 const router = Router();
 
 // POST /api/evaluate
-// Body: { job_description?, job_url?, cv_content }
-// Accepts EITHER job_description (raw text) OR job_url (will be fetched), or both.
+// Body: { job_description, cv_content }
 // cv_content is always required.
 router.post('/', async (req, res) => {
   try {
-    let { job_description, job_url, cv_content } = req.body;
+    const { job_description, cv_content } = req.body;
     const userId = req.user.id;
 
     if (!cv_content) {
@@ -32,7 +31,7 @@ router.post('/', async (req, res) => {
     }
 
     const evaluation = await evaluateJob(job_description, cv_content);
-    const reportMd = await generateReportMarkdown(evaluation, job_url);
+    const reportMd = await generateReportMarkdown(evaluation);
 
     const globalScore = evaluation.score?.global;
     const keywords = evaluation.keywords || [];
@@ -49,7 +48,7 @@ router.post('/', async (req, res) => {
         evaluation.role || 'Unknown',
         globalScore !== undefined ? parseFloat(globalScore) : null,
         'Evaluated',
-        job_url || null,
+        null,
         reportMd,
         evaluation.archetype || null,
         evaluation.block_a?.tldr || null,

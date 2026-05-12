@@ -80,7 +80,6 @@ export default function EvaluatePage() {
       const res = await evaluate({
         cv_content: cvContent,
         job_description: jobDesc,
-        job_url: jobUrl.trim() || undefined,
       });
       complete();
       await new Promise(r => setTimeout(r, 400));

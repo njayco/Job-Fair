@@ -189,7 +189,6 @@ export async function saveCv(content_md: string): Promise<CvData> {
 // Evaluate
 export async function evaluate(params: {
   job_description?: string;
-  job_url?: string;
   cv_content: string;
 }): Promise<EvaluateResponse> {
   const res = await fetch('/api/evaluate', {

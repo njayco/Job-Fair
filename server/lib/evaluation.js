@@ -349,7 +349,7 @@ export async function evaluateJob(jobDescription, cvContent) {
   return evaluation;
 }
 
-export async function generateReportMarkdown(evaluation, jobUrl) {
+export async function generateReportMarkdown(evaluation, jobUrl = null) {
   const date = new Date().toISOString().split('T')[0];
   const score = evaluation.score?.global?.toFixed(2) || 'N/A';
   const archetype = evaluation.archetype || 'Unknown';
