@@ -55,7 +55,11 @@ router.get('/', async (req, res) => {
     const result = await pool.query(
       `SELECT id,
               (result_json->'career_matches'->0->>'role') AS top_role,
-              (result_json->'career_matches'->0->>'match_pct')::int AS top_pct,
+              CASE
+                WHEN (result_json->'career_matches'->0->>'match_pct') ~ '^[0-9]+$'
+                THEN (result_json->'career_matches'->0->>'match_pct')::int
+                ELSE NULL
+              END AS top_pct,
               created_at
        FROM career_matches
        WHERE user_id = $1
@@ -129,10 +133,31 @@ router.post('/', async (req, res) => {
     ) {
       throw new Error('AI response is missing required fields. Please try again.');
     }
-    // Enforce max 5 matches
-    if (analysis.career_matches.length > 5) {
-      analysis.career_matches = analysis.career_matches.slice(0, 5);
-    }
+
+    // Normalize nested fields to prevent frontend crashes on partial AI responses
+    analysis.career_matches = analysis.career_matches.slice(0, 5).map(m => ({
+      role: String(m.role || ''),
+      match_pct: Number(m.match_pct) || 0,
+      salary_range: String(m.salary_range || 'N/A'),
+      growth_outlook: String(m.growth_outlook || 'N/A'),
+      transition_difficulty: String(m.transition_difficulty || 'N/A'),
+      why_you_match: String(m.why_you_match || ''),
+    }));
+    analysis.career_identity = {
+      current: String(analysis.career_identity.current || ''),
+      emerging: String(analysis.career_identity.emerging || ''),
+      long_term: String(analysis.career_identity.long_term || ''),
+    };
+    analysis.linkedin = {
+      headline: String(analysis.linkedin.headline || ''),
+      about: String(analysis.linkedin.about || ''),
+    };
+    const sg = analysis.strengths_gaps;
+    analysis.strengths_gaps = {
+      strongest: Array.isArray(sg.strongest) ? sg.strongest.map(String) : [],
+      underutilized: Array.isArray(sg.underutilized) ? sg.underutilized.map(String) : [],
+      missing_keywords: Array.isArray(sg.missing_keywords) ? sg.missing_keywords.map(String) : [],
+    };
 
     const insertResult = await pool.query(
       'INSERT INTO career_matches (user_id, result_json) VALUES ($1, $2) RETURNING id, created_at',
