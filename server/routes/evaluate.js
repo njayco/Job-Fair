@@ -39,8 +39,8 @@ router.post('/', async (req, res) => {
     const appResult = await pool.query(
       `INSERT INTO applications
          (user_id, company, role, score, status, url, report_md,
-          archetype, tldr, remote, comp_score, keywords)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          archetype, tldr, remote, comp_score, keywords, evaluation_json)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING id, company, role, score, status, created_at`,
       [
         userId,
@@ -55,6 +55,7 @@ router.post('/', async (req, res) => {
         evaluation.block_a?.remote || null,
         evaluation.score?.comp !== undefined ? parseFloat(evaluation.score.comp) : null,
         keywords.length > 0 ? keywords : null,
+        JSON.stringify(evaluation),
       ]
     );
 

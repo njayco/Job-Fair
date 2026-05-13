@@ -44,9 +44,12 @@ const SCHEMA_SQL = `
     remote VARCHAR(100),
     comp_score NUMERIC(3,2),
     keywords TEXT[],
+    evaluation_json JSONB,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
   );
+
+  ALTER TABLE applications ADD COLUMN IF NOT EXISTS evaluation_json JSONB;
 
   CREATE OR REPLACE FUNCTION update_updated_at_column()
   RETURNS TRIGGER AS $$

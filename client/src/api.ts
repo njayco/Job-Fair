@@ -26,6 +26,7 @@ export interface Application {
   remote: string | null;
   comp_score: string | null;
   keywords: string[] | null;
+  evaluation_json: Evaluation | null;
   created_at: string;
   updated_at: string;
 }

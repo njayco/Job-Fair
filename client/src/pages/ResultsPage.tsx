@@ -30,16 +30,24 @@ export default function ResultsPage() {
   useEffect(() => {
     if (!id) return;
     const stored = localStorage.getItem(`eval_${id}`) || sessionStorage.getItem(`eval_${id}`);
+    let evaluationFromStorage: Evaluation | null = null;
     if (stored) {
       try {
         const parsed: EvaluateResponse = JSON.parse(stored);
-        setEvaluation(parsed.evaluation);
+        evaluationFromStorage = parsed.evaluation;
+        setEvaluation(evaluationFromStorage);
       } catch {
-        // fall through to markdown display
+        // fall through to server-side evaluation_json
       }
     }
     getApplication(Number(id))
-      .then(a => { setApp(a); setSavedStatus(a.status); })
+      .then(a => {
+        setApp(a);
+        setSavedStatus(a.status);
+        if (!evaluationFromStorage && a.evaluation_json) {
+          setEvaluation(a.evaluation_json);
+        }
+      })
       .catch(e => setError(e instanceof Error ? e.message : 'Not found'))
       .finally(() => setLoading(false));
   }, [id]);
