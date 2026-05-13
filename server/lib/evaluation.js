@@ -30,7 +30,7 @@ async function getPromptContext() {
 }
 
 // Model is configurable via env var; default is claude-sonnet-4-6 (Replit AI Integration)
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
+export const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
 
 // SSRF protection: check if an IP address is in a private/reserved range
 function isPrivateIp(ip) {
@@ -103,7 +103,7 @@ async function validateAndResolveUrl(rawUrl) {
 }
 
 // Support both Replit AI integration key and user-provided Anthropic key
-const client = new Anthropic({
+export const anthropicClient = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
   ...(process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL && !process.env.ANTHROPIC_API_KEY
     ? { baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL }
@@ -324,7 +324,7 @@ export async function evaluateJob(jobDescription, cvContent) {
   const prompt = buildEvaluationPrompt(jobDescription, cvContent);
   const systemPrompt = await buildSystemPrompt();
 
-  const message = await client.messages.create({
+  const message = await anthropicClient.messages.create({
     model: MODEL,
     max_tokens: 8192,
     system: systemPrompt,

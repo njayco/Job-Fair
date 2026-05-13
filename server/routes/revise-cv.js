@@ -1,16 +1,7 @@
 import { Router } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
+import { anthropicClient, MODEL } from '../lib/evaluation.js';
 
 const router = Router();
-
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY,
-  ...(process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL && !process.env.ANTHROPIC_API_KEY
-    ? { baseURL: process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL }
-    : {}),
-});
 
 const SYSTEM_PROMPT = [
   'You are an expert resume editor.',
@@ -63,7 +54,7 @@ ${changesText}
 
 Return only the revised CV markdown.`;
 
-    const message = await client.messages.create({
+    const message = await anthropicClient.messages.create({
       model: MODEL,
       max_tokens: 8192,
       system: SYSTEM_PROMPT,

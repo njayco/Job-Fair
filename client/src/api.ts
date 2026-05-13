@@ -227,7 +227,7 @@ export async function reviseCv(params: {
   });
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Failed to revise CV');
+    throw new Error(data.message || data.error || 'Failed to revise CV');
   }
   return data;
 }
