@@ -61,12 +61,16 @@ router.post('/', async (req, res) => {
 
     const savedApp = appResult.rows[0];
 
-    // Silently upsert CV into cvs table so Career Matching + Revise My Resume work on any device
-    pool.query(
-      `INSERT INTO cvs (user_id, content_md) VALUES ($1, $2)
-       ON CONFLICT (user_id) DO UPDATE SET content_md = EXCLUDED.content_md, updated_at = NOW()`,
-      [userId, cv_content]
-    ).catch(e => console.error('CV upsert warning:', e.message));
+    // Persist CV so Career Matching + Revise My Resume work on any device
+    try {
+      await pool.query(
+        `INSERT INTO cvs (user_id, content_md) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET content_md = EXCLUDED.content_md, updated_at = NOW()`,
+        [userId, cv_content]
+      );
+    } catch (e) {
+      console.error('CV upsert warning (non-fatal):', e.message);
+    }
 
     res.json({
       application_id: savedApp.id,
