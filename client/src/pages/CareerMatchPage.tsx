@@ -80,15 +80,13 @@ export default function CareerMatchPage() {
     try {
       const r = await careerMatch();
       setResult(r);
-      setHistory(prev => [
-        {
-          id: r.id,
-          top_role: r.career_matches[0]?.role ?? null,
-          top_pct: r.career_matches[0]?.match_pct ?? null,
-          created_at: r.created_at,
-        },
-        ...prev,
-      ]);
+      const newEntry: CareerMatchHistoryItem = {
+        id: r.id,
+        top_role: r.career_matches[0]?.role ?? null,
+        top_pct: r.career_matches[0]?.match_pct ?? null,
+        created_at: r.created_at,
+      };
+      setHistory(prev => [newEntry, ...prev.filter(h => h.id !== r.id)]);
       setTimeout(() => {
         document.getElementById('career-match-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 80);

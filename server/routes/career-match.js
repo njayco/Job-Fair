@@ -126,7 +126,7 @@ router.post('/', async (req, res) => {
 
     // Validate required top-level shape before persisting
     if (
-      !Array.isArray(analysis.career_matches) || analysis.career_matches.length < 3 ||
+      !Array.isArray(analysis.career_matches) || analysis.career_matches.length < 5 ||
       typeof analysis.career_identity !== 'object' ||
       typeof analysis.linkedin !== 'object' ||
       typeof analysis.strengths_gaps !== 'object'
