@@ -16,6 +16,7 @@ import evaluateRouter from './routes/evaluate.js';
 import pdfRouter from './routes/pdf.js';
 import applicationsRouter from './routes/applications.js';
 import cvRouter from './routes/cv.js';
+import reviseCvRouter from './routes/revise-cv.js';
 
 const app = express();
 const PORT = process.env.PORT || process.env.API_PORT || 3001;
@@ -41,6 +42,7 @@ app.use('/api/evaluate', requireAuth, evaluateRouter);
 app.use('/api/generate-pdf', requireAuth, pdfRouter);
 app.use('/api/applications', requireAuth, applicationsRouter);
 app.use('/api/cv', requireAuth, cvRouter);
+app.use('/api/revise-cv', requireAuth, reviseCvRouter);
 
 app.use('/api/*path', (req, res) => {
   res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });

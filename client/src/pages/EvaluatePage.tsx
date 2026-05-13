@@ -83,7 +83,11 @@ export default function EvaluatePage() {
       });
       complete();
       await new Promise(r => setTimeout(r, 400));
-      sessionStorage.setItem(`eval_${res.application_id}`, JSON.stringify(res));
+      try {
+        localStorage.setItem(`eval_${res.application_id}`, JSON.stringify(res));
+      } catch {
+        sessionStorage.setItem(`eval_${res.application_id}`, JSON.stringify(res));
+      }
       navigate(`/results/${res.application_id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Evaluation failed');

@@ -212,6 +212,26 @@ export async function evaluate(params: {
   return data;
 }
 
+// Revise CV with AI suggestions
+export async function reviseCv(params: {
+  cv_content: string;
+  cv_changes: CvChange[];
+  company?: string;
+  role?: string;
+}): Promise<{ revised_cv: string }> {
+  const res = await fetch('/api/revise-cv', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to revise CV');
+  }
+  return data;
+}
+
 // Generate PDF (returns a blob)
 export async function generatePdf(params: {
   cv_markdown?: string;

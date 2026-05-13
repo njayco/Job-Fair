@@ -3,12 +3,13 @@ import { useParams, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { getApplication, generatePdf, downloadBlob, scoreColor, updateApplicationStatus } from '../api';
+import { getApplication, generatePdf, downloadBlob, scoreColor, updateApplicationStatus, reviseCv, getCv } from '../api';
 import type { Application, Evaluation, EvaluateResponse, AppStatus } from '../api';
 import ReactMarkdown from 'react-markdown';
 import {
   FileDown, LayoutDashboard, ChevronLeft, ArrowRight, ExternalLink,
   CheckCircle2, AlertCircle, XCircle, TrendingUp, DollarSign, FileEdit, BookOpen,
+  Sparkles, Copy, Download, Check, Code,
 } from 'lucide-react';
 
 export default function ResultsPage() {
@@ -20,10 +21,15 @@ export default function ResultsPage() {
   const [saving, setSaving] = useState(false);
   const [savedStatus, setSavedStatus] = useState<AppStatus | null>(null);
   const [error, setError] = useState('');
+  const [revisedCv, setRevisedCv] = useState<string | null>(null);
+  const [revising, setRevising] = useState(false);
+  const [reviseError, setReviseError] = useState('');
+  const [showSource, setShowSource] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    const stored = sessionStorage.getItem(`eval_${id}`);
+    const stored = localStorage.getItem(`eval_${id}`) || sessionStorage.getItem(`eval_${id}`);
     if (stored) {
       try {
         const parsed: EvaluateResponse = JSON.parse(stored);
@@ -49,6 +55,63 @@ export default function ResultsPage() {
     } finally {
       setPdfLoading(false);
     }
+  };
+
+  const handleReviseCv = async () => {
+    if (!app || !evaluation) return;
+    setRevising(true);
+    setReviseError('');
+    try {
+      let cvContent = localStorage.getItem('career_ops_cv') || '';
+      if (!cvContent.trim()) {
+        try {
+          const saved = await getCv();
+          cvContent = saved.content_md || '';
+        } catch {
+          // ignore — handled below
+        }
+      }
+      if (!cvContent.trim()) {
+        throw new Error('Original CV not found. Please paste your CV on the Evaluate page first.');
+      }
+      const changes = evaluation.block_e?.cv_changes || [];
+      if (changes.length === 0) {
+        throw new Error('No CV change suggestions are available for this evaluation.');
+      }
+      const result = await reviseCv({
+        cv_content: cvContent,
+        cv_changes: changes,
+        company: app.company,
+        role: app.role,
+      });
+      setRevisedCv(result.revised_cv);
+      setTimeout(() => {
+        document.getElementById('revised-cv-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+    } catch (e) {
+      setReviseError(e instanceof Error ? e.message : 'Failed to revise CV');
+    } finally {
+      setRevising(false);
+    }
+  };
+
+  const handleCopyRevised = async () => {
+    if (!revisedCv) return;
+    try {
+      await navigator.clipboard.writeText(revisedCv);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setReviseError('Could not copy to clipboard. Please select and copy manually.');
+    }
+  };
+
+  const handleDownloadRevised = () => {
+    if (!revisedCv || !app) return;
+    const safe = (s: string) => s.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
+    const filename = `${safe(app.company)}_${safe(app.role)}_Revised_CV.md`;
+    const blob = new Blob([revisedCv], { type: 'text/markdown;charset=utf-8' });
+    downloadBlob(blob, filename);
   };
 
   const handleSaveToPipeline = async (status: AppStatus) => {
@@ -154,6 +217,17 @@ export default function ResultsPage() {
               <FileDown className="w-4 h-4" />
               {pdfLoading ? 'GENERATING...' : 'DOWNLOAD PDF'}
             </Button>
+            {evaluation && (evaluation.block_e?.cv_changes?.length ?? 0) > 0 && (
+              <Button
+                onClick={handleReviseCv}
+                disabled={revising}
+                variant="accent"
+                className="gap-2 font-mono"
+              >
+                <Sparkles className="w-4 h-4" />
+                {revising ? 'REVISING...' : 'REVISE MY RESUME'}
+              </Button>
+            )}
             {savedStatus === 'Evaluated' ? (
               <Button
                 onClick={() => handleSaveToPipeline('Applied')}
@@ -434,6 +508,57 @@ export default function ResultsPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Revise CV — error inline */}
+        {reviseError && (
+          <div className="p-4 bg-[var(--color-red-indicator)]/10 border border-[var(--color-red-indicator)]/20 rounded-lg text-[var(--color-red-indicator)] font-mono text-sm">
+            ERROR: {reviseError}
+          </div>
+        )}
+
+        {/* Revised CV display */}
+        {revisedCv && (
+          <div
+            id="revised-cv-section"
+            className="bg-[var(--color-surface)] border-2 border-[var(--color-accent)]/40 rounded-xl p-6 md:p-8 space-y-5"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold font-mono uppercase flex items-center gap-2 text-[var(--color-accent)]">
+                  <Sparkles className="w-5 h-5" />
+                  Your Revised Resume
+                </h2>
+                <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                  Tailored for {app.role} at {app.company}. Review before sending.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={handleCopyRevised} variant="secondary" size="sm" className="gap-2 font-mono">
+                  {copied ? <Check className="w-4 h-4 text-[var(--color-green-indicator)]" /> : <Copy className="w-4 h-4" />}
+                  {copied ? 'COPIED' : 'COPY'}
+                </Button>
+                <Button onClick={handleDownloadRevised} variant="secondary" size="sm" className="gap-2 font-mono">
+                  <Download className="w-4 h-4" />
+                  DOWNLOAD .MD
+                </Button>
+                <Button onClick={() => setShowSource(s => !s)} variant="ghost" size="sm" className="gap-2 font-mono">
+                  <Code className="w-4 h-4" />
+                  {showSource ? 'PREVIEW' : 'SOURCE'}
+                </Button>
+              </div>
+            </div>
+
+            {showSource ? (
+              <pre className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-4 text-xs font-mono text-[var(--color-text)] overflow-auto max-h-[70vh] whitespace-pre-wrap">
+{revisedCv}
+              </pre>
+            ) : (
+              <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-6 prose prose-invert prose-sm max-w-none overflow-auto max-h-[70vh]">
+                <ReactMarkdown>{revisedCv}</ReactMarkdown>
               </div>
             )}
           </div>
