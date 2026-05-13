@@ -342,11 +342,12 @@ export interface CareerMatchHistoryItem {
   created_at: string;
 }
 
-export async function careerMatch(): Promise<CareerMatchResult> {
+export async function careerMatch(cvContent?: string): Promise<CareerMatchResult> {
   const res = await fetch('/api/career-match', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
+    body: JSON.stringify(cvContent ? { cv_content: cvContent } : {}),
   });
   const data = await res.json();
   if (!res.ok) {

@@ -92,15 +92,31 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const cvResult = await pool.query(
-      'SELECT content_md FROM cvs WHERE user_id = $1',
-      [req.user.id]
-    );
-    const cvContent = cvResult.rows[0]?.content_md || '';
+    const { cv_content: cvFromBody } = req.body;
+
+    let cvContent = '';
+
+    if (cvFromBody && typeof cvFromBody === 'string' && cvFromBody.trim().length >= 50) {
+      // Use CV pasted directly in the request
+      cvContent = cvFromBody.trim();
+      // Persist it so future runs (and other features) can reuse it
+      pool.query(
+        `INSERT INTO cvs (user_id, content_md) VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET content_md = EXCLUDED.content_md, updated_at = NOW()`,
+        [req.user.id, cvContent]
+      ).catch(e => console.error('CV upsert warning:', e.message));
+    } else {
+      // Fall back to saved CV in DB
+      const cvResult = await pool.query(
+        'SELECT content_md FROM cvs WHERE user_id = $1',
+        [req.user.id]
+      );
+      cvContent = cvResult.rows[0]?.content_md || '';
+    }
 
     if (!cvContent || cvContent.trim().length < 50) {
       return res.status(400).json({
-        error: 'No CV found. Please save your CV on the Evaluate page first.',
+        error: 'No CV found. Please paste your resume below.',
         code: 'NO_CV',
       });
     }

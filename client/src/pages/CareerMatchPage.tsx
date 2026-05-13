@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { careerMatch, getCareerMatchHistory, getCareerMatch, getCv } from '../api';
 import type { CareerMatchResult, CareerMatchHistoryItem } from '../api';
 import {
   Sparkles, Copy, Check, TrendingUp, Star,
-  ChevronRight, Clock, AlertCircle, RotateCcw, Link2,
+  Clock, AlertCircle, RotateCcw, Link2, FileText,
 } from 'lucide-react';
 
 function CopyButton({ text, label = 'COPY' }: { text: string; label?: string }) {
@@ -61,6 +60,7 @@ export default function CareerMatchPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [error, setError] = useState('');
   const [noCV, setNoCV] = useState(false);
+  const [cvText, setCvText] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -68,18 +68,25 @@ export default function CareerMatchPage() {
       getCv().then(cv => {
         if (!cv.content_md || cv.content_md.trim().length < 50) {
           setNoCV(true);
+        } else {
+          setCvText(cv.content_md);
         }
       }).catch(() => setNoCV(true)),
     ]).finally(() => setHistoryLoading(false));
   }, []);
 
   const handleRun = async () => {
+    const cvToSend = cvText.trim();
+    if (cvToSend.length < 50) {
+      setError('Please paste your resume before running the analysis.');
+      return;
+    }
     setLoading(true);
     setError('');
-    setNoCV(false);
     try {
-      const r = await careerMatch();
+      const r = await careerMatch(cvToSend);
       setResult(r);
+      setNoCV(false);
       const newEntry: CareerMatchHistoryItem = {
         id: r.id,
         top_role: r.career_matches[0]?.role ?? null,
@@ -92,11 +99,7 @@ export default function CareerMatchPage() {
       }, 80);
     } catch (e: unknown) {
       const err = e as Error & { code?: string };
-      if (err.code === 'NO_CV') {
-        setNoCV(true);
-      } else {
-        setError(err.message || 'Something went wrong. Please try again.');
-      }
+      setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -133,23 +136,31 @@ export default function CareerMatchPage() {
           </p>
         </div>
 
-        {/* No CV prompt */}
-        {noCV && (
-          <div className="p-5 bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/30 rounded-xl flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-[var(--color-accent)] shrink-0 mt-0.5" />
-            <div className="space-y-2">
-              <p className="font-medium text-[var(--color-text)]">No CV found</p>
-              <p className="text-sm text-[var(--color-text-muted)]">
-                Paste your CV on the Evaluate page — it will be saved automatically and available for Career Matching.
-              </p>
-              <Link to="/evaluate">
-                <Button variant="outline" className="font-mono text-xs mt-1 gap-2">
-                  Go to Evaluate <ChevronRight className="w-3 h-3" />
-                </Button>
-              </Link>
-            </div>
+        {/* CV input — shown when no saved CV exists, or always available as a collapsible */}
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-3">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-[var(--color-primary)]" />
+            <span className="text-sm font-bold font-mono uppercase text-[var(--color-text)]">Your Resume</span>
+            {!noCV && cvText && (
+              <span className="text-xs font-mono text-[var(--color-green-indicator)] ml-1">· saved CV loaded</span>
+            )}
+            {noCV && (
+              <span className="flex items-center gap-1 text-xs font-mono text-[var(--color-accent)] ml-1">
+                <AlertCircle className="w-3 h-3" /> no saved CV
+              </span>
+            )}
           </div>
-        )}
+          <textarea
+            value={cvText}
+            onChange={e => setCvText(e.target.value)}
+            placeholder="Paste your full resume here (plain text or markdown)…"
+            rows={noCV ? 12 : 6}
+            className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-3 text-sm font-mono text-[var(--color-text)] placeholder-[var(--color-text-muted)] resize-y focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-colors"
+          />
+          <p className="text-xs text-[var(--color-text-muted)]">
+            Edit or replace your resume here before running the analysis. Your CV will be saved automatically.
+          </p>
+        </div>
 
         {/* Error */}
         {error && (
