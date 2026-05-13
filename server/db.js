@@ -58,6 +58,10 @@ const SCHEMA_SQL = `
     created_at TIMESTAMP DEFAULT NOW()
   );
 
+  ALTER TABLE career_matches ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+  ALTER TABLE career_matches ADD COLUMN IF NOT EXISTS result_json JSONB;
+  ALTER TABLE career_matches ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
+
   CREATE OR REPLACE FUNCTION update_updated_at_column()
   RETURNS TRIGGER AS $$
   BEGIN

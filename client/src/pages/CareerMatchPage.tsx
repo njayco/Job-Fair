@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
-import { careerMatch, getCareerMatchHistory, getCareerMatch } from '../api';
+import { careerMatch, getCareerMatchHistory, getCareerMatch, getCv } from '../api';
 import type { CareerMatchResult, CareerMatchHistoryItem } from '../api';
 import {
   Sparkles, Copy, Check, TrendingUp, Star,
@@ -63,10 +63,14 @@ export default function CareerMatchPage() {
   const [noCV, setNoCV] = useState(false);
 
   useEffect(() => {
-    getCareerMatchHistory()
-      .then(d => setHistory(d.history))
-      .catch(() => {})
-      .finally(() => setHistoryLoading(false));
+    Promise.all([
+      getCareerMatchHistory().then(d => setHistory(d.history)).catch(() => {}),
+      getCv().then(cv => {
+        if (!cv.content_md || cv.content_md.trim().length < 50) {
+          setNoCV(true);
+        }
+      }).catch(() => setNoCV(true)),
+    ]).finally(() => setHistoryLoading(false));
   }, []);
 
   const handleRun = async () => {
