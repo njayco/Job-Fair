@@ -1,0 +1,97 @@
+Career Matching™ — AI-Powered Career Discovery & Positioning Engine
+Overview
+Career Matching™ is a new AI feature inside Career-Ops that analyzes a user’s resume, experience, education, projects, and skills to identify careers and job titles they are most naturally aligned with.
+Instead of only matching users to a single job description, Career Matching™ helps users discover:
+what careers they are already qualified for
+hidden strengths in their background
+transferable skills
+industries where they can compete
+and how to position themselves professionally online
+It functions like an AI career strategist, recruiter, and branding consultant combined.
+Core Feature Breakdown
+1. AI Career Fit Analysis
+Users upload:
+Resume/CV
+Optional LinkedIn profile
+Portfolio links
+Certifications
+Personal interests/goals
+The AI then evaluates:
+Work history
+Leadership indicators
+Technical skills
+Communication ability
+Industry alignment
+Seniority trajectory
+Personality/work-style signals
+Entrepreneurial experience
+Creative experience
+Transferable skills
+Career Match Results
+Top Career Matches
+The platform returns:
+Best-fit occupations
+Match percentages
+Estimated salary ranges
+Growth outlook
+Difficulty to transition into role
+Recommended next steps
+Example:
+Your Best Career Matches
+Role	Match Score	Estimated Salary
+Product Manager	92%	$120K–$180K
+Customer Success Manager	88%	$85K–$140K
+Educational Technologist	95%	$90K–$160K
+UX Strategist	81%	$100K–$170K
+AI Solutions Consultant	84%	$110K–$190K
+Experience Breakdown Engine
+The AI explains WHY the user matches each role.
+Example:
+“You demonstrate strong product-thinking ability through your entrepreneurial projects and software development experience. Your leadership in building independent platforms indicates high ownership and cross-functional management capability.”
+It also identifies:
+strongest experiences
+underutilized accomplishments
+hidden transferable skills
+weak points in positioning
+missing industry keywords
+LinkedIn Positioning Assistant
+AI LinkedIn Rewrite Suggestions
+Career Matching™ generates:
+Optimized LinkedIn Headline
+Example:
+“AI-Native Product Developer | Founder | Full-Stack Builder | EdTech & Creative Technology Strategist”
+About Section Rewrite
+Professional storytelling tailored to the user’s ideal career path.
+Experience Reframing
+Turns weak job descriptions into outcome-focused positioning.
+Example:
+Instead of:
+“Worked customer service at testing center”
+AI reframes to:
+“Managed high-volume operations supporting 40–50+ daily candidates in a regulated testing environment while maintaining operational accuracy and customer satisfaction.”
+Career Identity Mapping
+The platform identifies:
+Current Career Identity
+Emerging Career Identity
+Long-Term Potential
+Example:
+Current: Operations & Support Professional
+Emerging: AI-Native Product Strategist
+Long-Term: Founder / Product Executive
+AI Career Coaching
+Career Matching™ also provides:
+Recommended certifications
+Suggested portfolio projects
+Networking strategy
+Best industries to target
+Resume framing recommendations
+Interview positioning strategy
+Salary negotiation advice
+“Position Me Better” Mode
+A premium AI feature that rewrites:
+resume bullets
+LinkedIn profile
+bio
+portfolio summaries
+personal branding statements
+based on a selected target career.
