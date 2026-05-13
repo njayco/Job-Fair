@@ -299,6 +299,76 @@ export async function deleteApplication(id: number): Promise<{ deleted: boolean;
   return res.json();
 }
 
+// Career Matching
+export interface CareerMatch {
+  role: string;
+  match_pct: number;
+  salary_range: string;
+  growth_outlook: string;
+  transition_difficulty: string;
+  why_you_match: string;
+}
+
+export interface CareerIdentity {
+  current: string;
+  emerging: string;
+  long_term: string;
+}
+
+export interface CareerLinkedIn {
+  headline: string;
+  about: string;
+}
+
+export interface CareerStrengthsGaps {
+  strongest: string[];
+  underutilized: string[];
+  missing_keywords: string[];
+}
+
+export interface CareerMatchResult {
+  id: number;
+  created_at: string;
+  career_matches: CareerMatch[];
+  career_identity: CareerIdentity;
+  linkedin: CareerLinkedIn;
+  strengths_gaps: CareerStrengthsGaps;
+}
+
+export interface CareerMatchHistoryItem {
+  id: number;
+  top_role: string | null;
+  top_pct: number | null;
+  created_at: string;
+}
+
+export async function careerMatch(): Promise<CareerMatchResult> {
+  const res = await fetch('/api/career-match', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const err = Object.assign(new Error(data.error || 'Career analysis failed'), { code: data.code });
+    throw err;
+  }
+  return data;
+}
+
+export async function getCareerMatchHistory(): Promise<{ history: CareerMatchHistoryItem[] }> {
+  const res = await fetch('/api/career-match', { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to fetch career match history');
+  return res.json();
+}
+
+export async function getCareerMatch(id: number): Promise<CareerMatchResult> {
+  const res = await fetch(`/api/career-match/${id}`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Career match not found');
+  const row = await res.json();
+  return { id: row.id, created_at: row.created_at, ...row.result_json };
+}
+
 // Helpers
 export const APP_STATUSES: AppStatus[] = [
   'Evaluated', 'Applied', 'Responded', 'Interview',

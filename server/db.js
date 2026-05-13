@@ -51,6 +51,13 @@ const SCHEMA_SQL = `
 
   ALTER TABLE applications ADD COLUMN IF NOT EXISTS evaluation_json JSONB;
 
+  CREATE TABLE IF NOT EXISTS career_matches (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    result_json JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+
   CREATE OR REPLACE FUNCTION update_updated_at_column()
   RETURNS TRIGGER AS $$
   BEGIN

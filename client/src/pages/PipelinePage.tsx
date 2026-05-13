@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { getApplications, updateApplicationStatus, scoreColor, APP_STATUSES } from '../api';
 import type { Application, AppStatus } from '../api';
-import { Plus, ExternalLink, ChevronDown, Clock, ChevronUp, ChevronsUpDown, FileText } from 'lucide-react';
+import { Plus, ExternalLink, ChevronDown, Clock, ChevronUp, ChevronsUpDown, FileText, Sparkles } from 'lucide-react';
 
 type SortField = 'score' | 'date';
 type SortOrder = 'asc' | 'desc';
@@ -95,12 +95,20 @@ export default function PipelinePage() {
             <h1 className="text-3xl font-bold font-mono tracking-tight">Pipeline</h1>
             <p className="text-[var(--color-text-muted)] mt-1">Manage your job applications and evaluations.</p>
           </div>
-          <Link to="/evaluate">
-            <Button className="gap-2 font-mono">
-              <Plus className="w-4 h-4" />
-              NEW EVALUATION
-            </Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link to="/career-match">
+              <Button variant="secondary" className="gap-2 font-mono">
+                <Sparkles className="w-4 h-4" />
+                CAREER MATCHING
+              </Button>
+            </Link>
+            <Link to="/evaluate">
+              <Button className="gap-2 font-mono">
+                <Plus className="w-4 h-4" />
+                NEW EVALUATION
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <div className="flex space-x-2 border-b border-[var(--color-border)] overflow-x-auto pb-2">

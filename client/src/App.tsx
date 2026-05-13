@@ -10,6 +10,7 @@ import ResultsPage from './pages/ResultsPage';
 import PipelinePage from './pages/PipelinePage';
 import ReportPage from './pages/ReportPage';
 import DonatePage from './pages/DonatePage';
+import CareerMatchPage from './pages/CareerMatchPage';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
           <Route path="/report/:id" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
+          <Route path="/career-match" element={<ProtectedRoute><CareerMatchPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
