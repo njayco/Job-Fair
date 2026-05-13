@@ -53,7 +53,7 @@ Rules:
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, result_json->>'created_label' AS label,
+      `SELECT id,
               (result_json->'career_matches'->0->>'role') AS top_role,
               (result_json->'career_matches'->0->>'match_pct')::int AS top_pct,
               created_at
@@ -118,6 +118,20 @@ router.post('/', async (req, res) => {
       analysis = JSON.parse(jsonStr.trim());
     } catch (e) {
       throw new Error(`Failed to parse AI response: ${e.message}`);
+    }
+
+    // Validate required top-level shape before persisting
+    if (
+      !Array.isArray(analysis.career_matches) || analysis.career_matches.length === 0 ||
+      typeof analysis.career_identity !== 'object' ||
+      typeof analysis.linkedin !== 'object' ||
+      typeof analysis.strengths_gaps !== 'object'
+    ) {
+      throw new Error('AI response is missing required fields. Please try again.');
+    }
+    // Enforce max 5 matches
+    if (analysis.career_matches.length > 5) {
+      analysis.career_matches = analysis.career_matches.slice(0, 5);
     }
 
     const insertResult = await pool.query(
