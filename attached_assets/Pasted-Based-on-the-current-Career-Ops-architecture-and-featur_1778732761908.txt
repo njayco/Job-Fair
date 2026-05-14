@@ -1,0 +1,411 @@
+Based on the current Career-Ops architecture and feature set , here’s a fully integrated expansion of the platform introducing:
+
+# Employer Mode™ — AI-Powered Applicant Evaluation System
+
+# Career-Ops Employer Mode™
+
+## AI-Powered Applicant Intelligence & Hiring Pipeline
+
+## Overview
+
+Career-Ops is expanding beyond job seekers into a dual-sided AI hiring platform.
+
+New visitors entering the platform must now choose:
+
+# Choose Your Role
+
+### Employee
+
+“Evaluate Jobs & Advance Your Career”
+
+### Employer
+
+“Evaluate Applicants & Find Top Talent”
+
+This transforms Career-Ops from:
+
+> a resume optimization platform
+
+into:
+
+> a complete AI-powered hiring ecosystem.
+
+---
+
+# Employer Dashboard™
+
+## Employer Workflow
+
+Employers can:
+
+* paste a job description
+* upload resumes in bulk
+* evaluate candidates with AI
+* rank applicants automatically
+* generate interview questions
+* review candidate profiles
+* track recruiting decisions
+
+---
+
+# Resume Upload System
+
+## Supported File Types
+
+Employers can:
+
+* drag & drop resumes
+* upload individually or in bulk
+
+Supported formats:
+
+* PDF (.pdf)
+* Microsoft Word (.docx)
+* Text (.txt)
+
+Unlimited uploads for Pro/Enterprise tiers.
+
+---
+
+# Job Description Input
+
+Employers can:
+
+* paste job descriptions
+* paste LinkedIn/Greenhouse/Lever links
+* upload job spec documents
+
+The AI extracts:
+
+* required skills
+* experience level
+* industry fit
+* leadership expectations
+* technical requirements
+* soft skills
+* salary indicators
+
+---
+
+# “Find Best Fit” Button
+
+After uploading resumes and the role:
+
+# Find Best Fit™
+
+The AI evaluates every candidate against the job description.
+
+---
+
+# Candidate Ranking Engine
+
+Applicants are automatically ranked by:
+
+# Match Score™ (0–100)
+
+The system sorts:
+Highest Match → Lowest Match
+
+---
+
+# Applicant Results Table
+
+| Candidate     | Match Score | Current Employer | Email                                       | Phone          |
+| ------------- | ----------- | ---------------- | ------------------------------------------- | -------------- |
+| Sarah Johnson | 96          | Google           | [sarah@email.com](mailto:sarah@email.com)   | (555) 555-5555 |
+| David Lee     | 91          | Meta             | [david@email.com](mailto:david@email.com)   | (555) 555-5555 |
+| Amanda Cruz   | 88          | Spotify          | [amanda@email.com](mailto:amanda@email.com) | (555) 555-5555 |
+
+---
+
+# AI Candidate Profile™
+
+Clicking a candidate opens:
+
+# Full Candidate Intelligence Report
+
+Generated using:
+
+* resume data
+* LinkedIn profile scraping (if available)
+* portfolio links
+* public career information
+
+---
+
+# Candidate Profile Includes
+
+## Professional Summary
+
+AI-generated executive overview of the candidate.
+
+---
+
+## Career Timeline
+
+* companies
+* promotions
+* role progression
+* years of experience
+
+---
+
+## Skill Breakdown
+
+Technical and soft skills identified from:
+
+* resume
+* LinkedIn
+* projects
+* certifications
+
+---
+
+## Leadership Analysis
+
+AI detects:
+
+* management experience
+* ownership mentality
+* entrepreneurial tendencies
+* communication strength
+* strategic thinking
+
+---
+
+## Compensation Estimation
+
+Estimated market salary range based on:
+
+* experience
+* location
+* title history
+* industry
+
+---
+
+# Evaluate Fit™
+
+Every candidate includes:
+
+# Evaluate Fit Button
+
+This generates:
+
+* full AI evaluation
+* strengths & weaknesses
+* hiring recommendation
+* onboarding risks
+* interview focus areas
+* culture alignment analysis
+
+---
+
+# Full Evaluation Report
+
+## AI Sections
+
+### A — Role Alignment
+
+How closely candidate fits the role.
+
+### B — Skill Match Analysis
+
+Requirements met vs missing.
+
+### C — Seniority Evaluation
+
+Whether candidate is junior, mid, senior, or overqualified.
+
+### D — Compensation Intelligence
+
+Expected compensation range.
+
+### E — LinkedIn & Resume Analysis
+
+Professional branding assessment.
+
+### F — Interview Strategy
+
+Suggested interview focus areas.
+
+---
+
+# Suggested Interview Questions™
+
+Each candidate evaluation automatically generates:
+
+# 10 AI Interview Questions
+
+Questions are personalized based on:
+
+* role requirements
+* candidate background
+* missing skills
+* leadership experience
+* red flags
+* technical stack
+
+---
+
+# Example Questions
+
+## Product Manager Candidate
+
+1. Tell us about a product decision you influenced using data.
+2. Describe a time you managed conflicting stakeholder priorities.
+3. How do you define product success?
+4. Walk us through a failed product launch.
+5. How do you prioritize roadmap requests?
+
+---
+
+# AI Hiring Recommendation
+
+At the end of the evaluation:
+
+## Recommendation
+
+* Strong Hire
+* Hire
+* Consider
+* Weak Match
+* Do Not Proceed
+
+---
+
+# Employer Pipeline™
+
+Employers can track candidates through stages:
+
+### Applicant Pipeline
+
+* Uploaded
+* Evaluated
+* Interviewing
+* Final Round
+* Offer Sent
+* Hired
+* Rejected
+
+---
+
+# Search & Filters
+
+Employers can filter by:
+
+* Match score
+* Years of experience
+* Industry
+* Current employer
+* Skills
+* Education
+* Leadership experience
+* Compensation range
+* Remote preference
+
+---
+
+# Time-to-Search Indicator
+
+At the top of results:
+
+“87 candidates evaluated in 4.82 seconds”
+
+(similar to Google Search timing UI)
+
+---
+
+# Future Enterprise Features
+
+## Planned Expansions
+
+* AI interview assistant
+* Auto-generated scorecards
+* Video interview analysis
+* Team collaboration
+* Recruiter notes
+* Candidate outreach templates
+* ATS integrations
+* Calendar scheduling
+* AI ranking explanations
+* Bias detection auditing
+
+---
+
+# Updated Positioning
+
+## Employee Side
+
+“Find the right jobs.”
+
+## Employer Side
+
+“Find the right people.”
+
+---
+
+# Strategic Advantage
+
+Most ATS systems:
+
+* organize resumes
+* require manual review
+* use weak keyword filtering
+
+Career-Ops Employer Mode™:
+
+* understands candidate context
+* evaluates transferable skills
+* explains hiring rationale
+* ranks intelligently
+* generates interview strategy
+
+This positions Career-Ops as:
+
+# an AI-native hiring intelligence platform.
+
+---
+
+# Suggested New Homepage Headline
+
+## For Employees
+
+Optimize your resume. Discover better jobs. Prepare smarter.
+
+## For Employers
+
+Upload resumes. Rank candidates instantly. Hire with AI intelligence.
+
+---
+
+# Suggested Pricing Expansion
+
+## Employee Plans
+
+* Free
+* Pro
+
+## Employer Plans
+
+* Recruiter
+* Team
+* Enterprise
+
+Potential pricing:
+
+* Recruiter: $99/month
+* Team: $299/month
+* Enterprise: Custom
+
+---
+
+# Updated Product Identity
+
+Career-Ops is no longer just:
+
+> an AI resume evaluator
+
+It becomes:
+
+# a two-sided AI career and recruiting operating system.
