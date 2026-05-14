@@ -5,7 +5,7 @@ import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { getEmployerJobs, deleteEmployerJob } from '../api';
 import type { EmployerJob } from '../api';
-import { Briefcase, Plus, Users, TrendingUp, Trash2, Clock, ChevronRight } from 'lucide-react';
+import { Briefcase, Plus, Users, Trash2, Clock } from 'lucide-react';
 
 export default function EmployerDashboardPage() {
   const { user } = useAuth();
@@ -149,13 +149,6 @@ export default function EmployerDashboardPage() {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <Link to={`/employer/jobs/${job.id}`}>
-                      <Button variant="outline" className="font-mono text-xs gap-1.5">
-                        <TrendingUp className="w-3.5 h-3.5" />
-                        View Results
-                        <ChevronRight className="w-3 h-3" />
-                      </Button>
-                    </Link>
                     <button
                       onClick={() => handleDelete(job.id)}
                       disabled={deleting === job.id}
