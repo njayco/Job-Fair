@@ -4,7 +4,7 @@ import { evaluateJob, generateReportMarkdown } from '../lib/evaluation.js';
 
 const router = Router();
 
-const MAX_AUTO_EVALS = 10;
+const MAX_AUTO_EVALS = 20;
 
 // ── Seed data ────────────────────────────────────────────────────────────────
 
@@ -102,7 +102,10 @@ async function fetchCompanyJobs(company) {
       signal: AbortSignal.timeout(10000),
       headers: { 'User-Agent': 'CareerOps/1.0' },
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.warn(`[scanner] ${company.api_type}/${company.api_slug} → HTTP ${res.status} — skipping`);
+      return [];
+    }
     const data = await res.json();
 
     if (company.api_type === 'greenhouse' || company.api_type === 'greenhouse_eu') {
@@ -137,7 +140,8 @@ async function fetchCompanyJobs(company) {
     }
 
     return [];
-  } catch {
+  } catch (err) {
+    console.warn(`[scanner] ${company.api_type}/${company.api_slug} → ${err.message ?? 'fetch error'} — skipping`);
     return [];
   }
 }
