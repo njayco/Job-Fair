@@ -1,0 +1,297 @@
+# Job Finder™ — AI-Powered Career Search Engine
+
+## Overview
+
+Job Finder™ is a new feature inside [Career-Ops](https://careerops.org?utm_source=chatgpt.com) that automatically searches the internet for jobs based on a user’s Career Matching™ profile, resume, skills, and target career paths.
+
+Instead of manually searching through thousands of listings, Job Finder™ acts like an AI recruiter that:
+
+* searches the web for relevant jobs
+* ranks them by compatibility
+* scores each opportunity
+* explains why the role matches
+* and prioritizes the highest-probability opportunities first
+
+---
+
+# Core Concept
+
+Career Matching™ identifies:
+
+> “What careers are you best suited for?”
+
+Job Finder™ answers:
+
+> “What jobs available right now are the best fit for you?”
+
+The two systems work together seamlessly.
+
+---
+
+# User Flow
+
+## Step 1 — Career Matching™
+
+The AI analyzes:
+
+* resume
+* skills
+* projects
+* experience
+* certifications
+* leadership background
+* LinkedIn profile
+
+It identifies:
+
+* ideal occupations
+* strongest industries
+* transferable skills
+* recommended salary ranges
+
+---
+
+## Step 2 — Search for Jobs
+
+Inside Career Matching™, users see:
+
+### 🔎 Search Jobs with Job Finder™
+
+Clicking the button launches an AI-powered job search using:
+
+* best-fit occupations
+* location preferences
+* salary expectations
+* remote/hybrid preferences
+* experience level
+* industries
+
+---
+
+# Dedicated Dashboard Tab
+
+## New Dashboard Navigation
+
+* Dashboard
+* Career Matching™
+* Resume Revision
+* Interview Prep
+* Application Pipeline
+* LinkedIn Optimizer
+* Job Finder™
+
+---
+
+# Job Finder™ Search Engine
+
+The platform searches:
+
+* LinkedIn Jobs
+* Indeed
+* Greenhouse
+* Lever
+* Wellfound
+* Google Jobs
+* Company career pages
+* Startup job boards
+* Government jobs
+* Education jobs
+* Tech hiring platforms
+
+---
+
+# AI Match Scoring System
+
+Every job receives a personalized:
+
+# Match Score™
+
+Example:
+
+| Job Title                           | Match Score |
+| ----------------------------------- | ----------- |
+| Product Manager — Spotify           | 96%         |
+| EdTech Program Manager — Google     | 93%         |
+| AI Solutions Consultant — Microsoft | 89%         |
+
+The score is based on:
+
+* skills overlap
+* industry experience
+* seniority alignment
+* education
+* transferable experience
+* keyword compatibility
+* leadership signals
+* portfolio/projects
+* ATS compatibility
+
+---
+
+# Ranked Search Results
+
+Results are automatically sorted:
+
+## Highest Match Score → Lowest Match Score
+
+The best opportunities appear first.
+
+This creates:
+
+* less application waste
+* higher interview probability
+* more strategic job searching
+
+---
+
+# Search Result UI Example
+
+## Search Header
+
+“Showing 247 AI-matched jobs for Product Strategy & EdTech Leadership”
+
+“Results generated in 0.82 seconds”
+
+(similar to Google Search timing UI)
+
+---
+
+# Example Result Card
+
+## Senior Product Manager — Education
+
+Spotify • New York, NY • Hybrid
+
+### Match Score: 96%
+
+### Why You Match
+
+* Strong product-building experience
+* Founder leadership background
+* EdTech alignment
+* AI-native development experience
+* Portfolio demonstrates systems thinking
+
+### Compensation Estimate
+
+$145K–$190K
+
+### Skill Gaps
+
+* Agile certification preferred
+* Enterprise analytics exposure
+
+Buttons:
+
+* Apply
+* Save Job
+* Revise Resume for This Job
+* Generate Cover Letter
+* Interview Prep
+* View Full Match Analysis
+
+---
+
+# AI Explanations
+
+Job Finder™ explains:
+
+* WHY a job is a good fit
+* WHY it may not be
+* what to improve before applying
+
+This transforms the platform from:
+“job listings”
+into
+“strategic career guidance.”
+
+---
+
+# Smart Filters
+
+Users can filter by:
+
+* Match Score
+* Salary
+* Remote / Hybrid / On-site
+* Industry
+* Company size
+* Startup vs Enterprise
+* Entry / Mid / Senior
+* Visa sponsorship
+* Location
+* Education requirements
+
+---
+
+# One-Click AI Actions
+
+Every job listing can trigger:
+
+* Resume Tailoring
+* ATS Optimization
+* LinkedIn Rewrite
+* STAR Interview Preparation
+* Cover Letter Generation
+* Salary Negotiation Prep
+
+---
+
+# AI Career Strategy Layer
+
+Job Finder™ can also recommend:
+
+## “Unexpected Matches”
+
+Example:
+“You may also be highly competitive for:
+
+* Technical Account Manager
+* Instructional Designer
+* Solutions Engineer
+* Community Operations Lead”
+
+This broadens opportunities users may never have considered.
+
+---
+
+# Saved Search Intelligence
+
+The AI learns:
+
+* what users apply to
+* which jobs get interviews
+* which scores convert best
+* user preferences over time
+
+Over time the recommendations become smarter.
+
+---
+
+# Suggested Taglines
+
+* “Find jobs built for your experience.”
+* “AI-powered job discovery.”
+* “Search smarter. Apply strategically.”
+* “Your resume already tells a story. We find where it fits.”
+* “Career search reimagined.”
+
+---
+
+# Why This Feature Matters
+
+Most job boards:
+
+* show generic listings
+* force users to guess fit
+* prioritize advertisers
+
+Job Finder™ prioritizes:
+
+* compatibility
+* probability of success
+* strategic career growth
+* AI-guided applications
+
+This positions Career-Ops not as another job board —
+but as an intelligent career operating system.
