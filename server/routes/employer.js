@@ -251,8 +251,8 @@ Each object must have ALL of these fields:
     "summary": "2-3 sentence executive overview of this candidate vs the role",
     "role_alignment": "1-2 paragraph narrative on how well this candidate aligns with the role requirements",
     "skill_match": [
-      { "requirement": "key requirement from JD", "met": true, "note": "brief evidence from resume" },
-      { "requirement": "another requirement", "met": false, "note": "what is missing" }
+      { "requirement": "key requirement from JD", "met": true, "note": "brief evidence from resume", "severity": "must_have" },
+      { "requirement": "another requirement", "met": false, "note": "what is missing", "severity": "nice_to_have" }
     ],
     "strengths": ["3 specific strength bullets grounded in the resume"],
     "gaps": ["1-2 honest gap bullets vs the JD"],
@@ -307,10 +307,12 @@ Respond with ONLY the JSON array, no markdown fences, no commentary.`;
       const gaps = Array.isArray(s.gaps) ? s.gaps.filter(x => typeof x === 'string') : [];
       const summary = typeof s.summary === 'string' ? s.summary : '';
       const roleAlignment = typeof s.role_alignment === 'string' ? s.role_alignment : '';
+      const VALID_SEVERITIES = ['must_have', 'nice_to_have'];
       const skillMatch = Array.isArray(s.skill_match) ? s.skill_match.map(m => ({
         requirement: typeof m.requirement === 'string' ? m.requirement : '',
         met: typeof m.met === 'boolean' ? m.met : false,
         note: typeof m.note === 'string' ? m.note : '',
+        severity: VALID_SEVERITIES.includes(m.severity) ? m.severity : null,
       })).filter(m => m.requirement) : [];
       const seniorityRationale = typeof s.seniority_rationale === 'string' ? s.seniority_rationale : '';
       const compContext = typeof s.comp_context === 'string' ? s.comp_context : '';

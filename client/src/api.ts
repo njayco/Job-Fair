@@ -621,6 +621,7 @@ export interface SkillMatchItem {
   requirement: string;
   met: boolean;
   note: string;
+  severity?: 'must_have' | 'nice_to_have' | null;
 }
 
 export interface InterviewStrategy {

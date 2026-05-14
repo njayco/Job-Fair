@@ -118,13 +118,24 @@ function SkillRow({ item }: { item: SkillMatchItem }) {
         <p className="text-sm font-medium">{item.requirement}</p>
         {item.note && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{item.note}</p>}
       </div>
-      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border shrink-0 ${
-        item.met
-          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-          : 'bg-red-500/10 text-red-400 border-red-500/20'
-      }`}>
-        {item.met ? '✓ Met' : '✗ Gap'}
-      </span>
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+          item.met
+            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+            : 'bg-red-500/10 text-red-400 border-red-500/20'
+        }`}>
+          {item.met ? '✓ Met' : '✗ Gap'}
+        </span>
+        {item.severity && (
+          <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+            item.severity === 'must_have'
+              ? 'bg-orange-500/10 text-orange-400 border-orange-500/20'
+              : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
+          }`}>
+            {item.severity === 'must_have' ? 'must-have' : 'nice-to-have'}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -505,6 +516,7 @@ export default function EmployerCandidateProfilePage() {
               {questions.map((q, i) => (
                 <QuestionItem key={i} q={q} idx={i} />
               ))}
+              {qError && <p className="text-sm text-[var(--color-red-indicator)] pt-1">{qError}</p>}
             </div>
           ) : (
             <div className="space-y-4">
