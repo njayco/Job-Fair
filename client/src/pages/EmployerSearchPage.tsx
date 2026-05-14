@@ -168,6 +168,7 @@ export default function EmployerSearchPage() {
     setCandidates([]);
     setFiles([]);
     setJdTitle('');
+    setJdDepartment('');
     setJdText('');
     setJdError('');
     setUploadError('');

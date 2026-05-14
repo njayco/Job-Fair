@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
-import { getEmployerPipeline, updateCandidateStatus } from '../api';
-import type { PipelineCandidate } from '../api';
+import { getEmployerPipeline, getEmployerJobs, updateCandidateStatus } from '../api';
+import type { PipelineCandidate, EmployerJob } from '../api';
 import { Loader2, User, Building2, Award, X, Search, ChevronDown } from 'lucide-react';
 
 const PIPELINE_COLS: { status: string; label: string; color: string }[] = [
@@ -94,6 +94,7 @@ export default function EmployerPipelinePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [candidates, setCandidates] = useState<PipelineCandidate[]>([]);
+  const [jobs, setJobs] = useState<EmployerJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -114,8 +115,11 @@ export default function EmployerPipelinePage() {
   }, [user, navigate]);
 
   useEffect(() => {
-    getEmployerPipeline()
-      .then(data => setCandidates(data.candidates))
+    Promise.all([getEmployerPipeline(), getEmployerJobs()])
+      .then(([pipeline, jobsData]) => {
+        setCandidates(pipeline.candidates);
+        setJobs(jobsData.jobs);
+      })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -126,22 +130,21 @@ export default function EmployerPipelinePage() {
 
   const departments = useMemo(() => {
     const seen = new Set<string>();
-    candidates.forEach(c => seen.add(c.job_department || 'Uncategorised'));
+    jobs.forEach(j => seen.add(j.department || 'Uncategorised'));
     return Array.from(seen).sort((a, b) => {
       if (a === 'Uncategorised') return 1;
       if (b === 'Uncategorised') return -1;
       return a.localeCompare(b);
     });
-  }, [candidates]);
+  }, [jobs]);
 
   const jobTitlesInDept = useMemo(() => {
     if (!filterDept) return [];
-    const seen = new Set<string>();
-    candidates
-      .filter(c => (c.job_department || 'Uncategorised') === filterDept)
-      .forEach(c => seen.add(c.job_title));
-    return Array.from(seen).sort();
-  }, [candidates, filterDept]);
+    return jobs
+      .filter(j => (j.department || 'Uncategorised') === filterDept)
+      .map(j => j.title)
+      .sort();
+  }, [jobs, filterDept]);
 
   const totalActive = candidates.filter(c => !['Hired', 'Rejected'].includes(c.status)).length;
   const totalHired = candidates.filter(c => c.status === 'Hired').length;
