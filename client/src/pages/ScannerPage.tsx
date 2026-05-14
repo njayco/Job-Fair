@@ -322,19 +322,29 @@ export default function ScannerPage() {
   };
 
   const handleApply = async (job: ScannerJobResult) => {
+    const scannerState = {
+      from: 'scanner' as const,
+      jobUrl: job.url,
+      jobTitle: job.title,
+      company: job.company,
+      cvContent: cvContent.trim() || undefined,
+      applicationId: job.application_id,
+    };
+
     if (job.application_id !== null) {
-      navigate(`/apply/${job.application_id}`, { state: { from: 'scanner' } });
+      navigate(`/apply/${job.application_id}`, { state: scannerState });
       return;
     }
+
     setApplyingUrl(job.url);
     try {
       const app = await createApplication({
         company: job.company,
         role: job.title,
         url: job.url,
-        status: 'Applied',
+        status: 'Evaluated',
       });
-      navigate(`/apply/${app.id}`, { state: { from: 'scanner' } });
+      navigate(`/apply/${app.id}`, { state: { ...scannerState, applicationId: app.id } });
     } catch (e) {
       console.error('Failed to create application for apply:', e);
     } finally {

@@ -7,11 +7,13 @@ import { validateAndResolveUrl } from '../lib/evaluation.js';
 const router = Router();
 
 // POST /api/apply/prepare
-// Body: { application_id }
+// Body: { application_id, cv_content? }
+// cv_content is optional — if provided and non-empty it overrides the saved CV (useful
+// when the user has pasted a CV into the scanner but not yet saved it to their profile).
 // Returns: { attempt_id, url, company, role, fields, detection_type, detection_error,
 //            tailored_resume, cover_letter }
 router.post('/prepare', async (req, res) => {
-  const { application_id } = req.body;
+  const { application_id, cv_content: cvContentOverride } = req.body;
   const userId = req.user.id;
 
   if (!application_id) {
@@ -47,12 +49,19 @@ router.post('/prepare', async (req, res) => {
       });
     }
 
-    // Fetch user's CV
-    const { rows: cvRows } = await pool.query(
-      'SELECT content_md FROM cvs WHERE user_id = $1',
-      [userId]
-    );
-    const cvContent = cvRows[0]?.content_md || '';
+    // Resolve CV — caller may pass cv_content directly (e.g. scanner paste-in)
+    // as an override; fall back to the CV saved in the user's profile.
+    let cvContent = (typeof cvContentOverride === 'string' && cvContentOverride.trim())
+      ? cvContentOverride.trim()
+      : '';
+
+    if (!cvContent) {
+      const { rows: cvRows } = await pool.query(
+        'SELECT content_md FROM cvs WHERE user_id = $1',
+        [userId]
+      );
+      cvContent = cvRows[0]?.content_md || '';
+    }
 
     if (!cvContent.trim()) {
       return res.status(400).json({

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
@@ -465,6 +465,11 @@ export default function ApplyPage() {
   const appId = parseInt(applicationId || '0', 10);
   const location = useLocation();
   const fromScanner = location.state?.from === 'scanner';
+  const scannerCtx = fromScanner
+    ? (location.state as { jobUrl: string; jobTitle: string; company: string; cvContent?: string; applicationId: number | null })
+    : null;
+
+  const autoLaunchedRef = useRef(false);
 
   const [app, setApp] = useState<Application | null>(null);
   const [appLoading, setAppLoading] = useState(true);
@@ -561,7 +566,7 @@ export default function ApplyPage() {
     setPrepareError('');
     setStep(2);
     try {
-      const result = await prepareApply(appId);
+      const result = await prepareApply(appId, scannerCtx?.cvContent || undefined);
       setDraft(result);
       setFields(result.fields);
       setTailoredResume(result.tailored_resume || '');
@@ -575,7 +580,15 @@ export default function ApplyPage() {
     } finally {
       setPreparing(false);
     }
-  }, [appId]);
+  }, [appId, scannerCtx?.cvContent]);
+
+  // Auto-launch prepare flow when navigating from the Scanner for any job
+  // (evaluated jobs have full context; unevaluated have just URL + CV).
+  useEffect(() => {
+    if (!fromScanner || autoLaunchedRef.current || appLoading || !app || step !== 1 || preparing) return;
+    autoLaunchedRef.current = true;
+    handleLaunch();
+  }, [fromScanner, appLoading, app, step, preparing, handleLaunch]);
 
   const handleFieldChange = (index: number, value: string) => {
     setFields(prev => prev.map((f, i) => i === index ? { ...f, approved_value: value } : f));
@@ -634,7 +647,32 @@ export default function ApplyPage() {
   if (appLoading) {
     return (
       <Layout>
-        <div className="py-24 text-center font-mono text-[var(--color-text-muted)] animate-pulse">Loading…</div>
+        <div className="max-w-3xl mx-auto space-y-8">
+          <Link
+            to={fromScanner ? '/scanner' : '/pipeline'}
+            className="inline-flex items-center text-sm font-mono text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4 mr-1" />
+            {fromScanner ? 'Back to Scanner' : 'Back to Pipeline'}
+          </Link>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <Send className="w-6 h-6 text-[var(--color-primary)]" />
+              <h1 className="text-2xl font-bold font-mono tracking-tight">Assisted Apply</h1>
+            </div>
+            {scannerCtx ? (
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <span className="text-lg font-semibold text-[var(--color-text)]">{scannerCtx.company}</span>
+                <span className="text-[var(--color-text-muted)] hidden sm:inline">—</span>
+                <span className="text-[var(--color-text-muted)]">{scannerCtx.jobTitle}</span>
+              </div>
+            ) : null}
+            <Steps step={1} />
+          </div>
+          <div className="py-12 text-center font-mono text-[var(--color-text-muted)] animate-pulse">
+            {fromScanner ? 'Preparing your application…' : 'Loading…'}
+          </div>
+        </div>
       </Layout>
     );
   }

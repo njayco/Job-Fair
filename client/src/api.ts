@@ -1012,12 +1012,12 @@ export async function deleteApplyAttempt(application_id: number, attempt_id: num
   if (!res.ok) throw new Error(data.error || 'Failed to delete attempt');
 }
 
-export async function prepareApply(application_id: number): Promise<ApplyPrepareResponse> {
+export async function prepareApply(application_id: number, cv_content?: string): Promise<ApplyPrepareResponse> {
   const res = await fetch('/api/apply/prepare', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ application_id }),
+    body: JSON.stringify({ application_id, ...(cv_content ? { cv_content } : {}) }),
   });
   const data = await res.json();
   if (!res.ok) throw Object.assign(new Error(data.error || 'Preparation failed'), { error_type: data.error_type });
