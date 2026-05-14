@@ -70,7 +70,30 @@ function FieldCard({
     } catch { /* ignore */ }
   };
 
-  const isEmpty = !field.approved_value?.trim();
+  const isFileUpload = field.type === 'file';
+  const isEmpty = !isFileUpload && !field.approved_value?.trim();
+
+  // File upload fields are informational only — shown as a reminder, not editable
+  if (isFileUpload) {
+    return (
+      <div className="bg-[var(--color-surface)] border border-[var(--color-yellow-indicator)]/30 rounded-xl p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-mono text-[var(--color-text-muted)] shrink-0">{index + 1}.</span>
+          <span className="text-sm font-medium text-[var(--color-text)]">{field.label}</span>
+          <FieldTypeBadge type="file" />
+          {field.required && (
+            <span className="shrink-0 text-[9px] font-mono text-[var(--color-accent)] border border-[var(--color-accent)]/30 px-1 py-0.5 rounded">
+              required
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-[var(--color-yellow-indicator)] flex items-start gap-1.5">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          This is a file upload — attach your resume/CV directly on the application form. Career-Ops cannot upload files on your behalf.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={`bg-[var(--color-surface)] border rounded-xl p-4 space-y-2 transition-colors ${
@@ -436,13 +459,19 @@ export default function ApplyPage() {
                 <AlertCircle className="w-4 h-4 text-[var(--color-yellow-indicator)] shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-[var(--color-yellow-indicator)]">
-                    {draft.detection_error === 'AUTH_WALL' ? 'Login required' :
-                     draft.detection_error === 'JS_REQUIRED' ? 'JavaScript-rendered form' :
+                    {draft.detection_error === 'AUTH_WALL' ? 'Login required — could not read form' :
+                     draft.detection_error === 'JS_REQUIRED' ? 'JavaScript-rendered form (could not parse statically)' :
                      draft.detection_error === 'TIMEOUT' ? 'Form page timed out' :
+                     draft.detection_error === 'NOT_FOUND' ? 'Form page returned 404 — check the URL' :
+                     draft.detection_error === 'RATE_LIMITED' ? 'Rate limited by the application portal' :
+                     draft.detection_error === 'SERVER_ERROR' ? 'Application portal returned a server error' :
+                     draft.detection_error === 'RESPONSE_TOO_LARGE' ? 'Page too large to parse' :
+                     draft.detection_error === 'NON_HTML_RESPONSE' ? 'Page did not return HTML' :
+                     draft.detection_error?.startsWith('HTTP_') ? `Portal returned ${draft.detection_error.replace('HTTP_', 'HTTP ')}` :
                      'Could not detect form fields'}
                   </p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                    Using standard ATS fields instead. Claude has still drafted answers for all common fields.
+                    Using standard ATS fields instead — Claude has still drafted answers for all common fields.
                     {' '}<a href={draft.url} target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary)] underline hover:no-underline">Open the form</a>
                     {' '}to see what's actually required.
                   </p>

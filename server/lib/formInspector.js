@@ -2,6 +2,9 @@
  * formInspector.js
  * Fetches a job application URL and attempts to detect form fields from the HTML.
  * Falls back to common ATS fields when the page is JS-rendered or inaccessible.
+ *
+ * Security: uses safeFetch() which validates every redirect hop via validateAndResolveUrl
+ * to prevent SSRF attacks, and enforces content-type + response-size limits.
  */
 
 import { validateAndResolveUrl } from './evaluation.js';
@@ -10,11 +13,15 @@ const BROWSER_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'en-US,en;q=0.9',
-  'Accept-Encoding': 'gzip, deflate, br',
+  'Accept-Encoding': 'identity', // avoid compressed streams for size enforcement
   'Cache-Control': 'no-cache',
 };
 
-// Common ATS fields used as a fallback when HTML inspection fails
+// Max HTML response size to parse (2 MB). Larger responses are likely binary or CDN errors.
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+
+// Common ATS fields used as a fallback when HTML inspection fails or yields too few results.
+// Includes a resume upload sentinel so users are explicitly reminded to attach their CV.
 const COMMON_ATS_FIELDS = [
   { label: 'First Name', name: 'first_name', type: 'text', required: true, selector: '', placeholder: '' },
   { label: 'Last Name', name: 'last_name', type: 'text', required: true, selector: '', placeholder: '' },
@@ -23,18 +30,19 @@ const COMMON_ATS_FIELDS = [
   { label: 'LinkedIn Profile URL', name: 'linkedin_url', type: 'url', required: false, selector: '', placeholder: 'https://linkedin.com/in/...' },
   { label: 'Website / Portfolio', name: 'website', type: 'url', required: false, selector: '', placeholder: '' },
   { label: 'Location (City, Country)', name: 'location', type: 'text', required: false, selector: '', placeholder: '' },
+  { label: 'Resume / CV Upload', name: 'resume', type: 'file', required: true, selector: '', placeholder: 'Upload your resume PDF/DOCX' },
   { label: 'Cover Letter', name: 'cover_letter', type: 'textarea', required: false, selector: '', placeholder: '' },
   { label: 'Why do you want to work here?', name: 'why_company', type: 'textarea', required: false, selector: '', placeholder: '' },
   { label: 'Work Authorization', name: 'work_authorization', type: 'select', required: false, selector: '', placeholder: '' },
   { label: 'Salary Expectation', name: 'salary_expectation', type: 'text', required: false, selector: '', placeholder: '' },
 ];
 
-// Strip tags and clean whitespace from HTML content
+// Strip HTML tags and normalise whitespace
 function stripTags(html) {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// Try to infer a human-readable label from a name/id attribute
+// Convert a name/id attribute to a readable label
 function inferLabel(nameOrId) {
   if (!nameOrId) return '';
   return nameOrId
@@ -63,15 +71,14 @@ function parseFormFields(html) {
     const forAttr = (m[1] || '').trim();
     const text = stripTags(m[2]).replace(/[*✱]+\s*$/, '').trim();
     if (text && forAttr) labels[forAttr] = text;
-    // also map by normalised forAttr without prefix numbers
     const key = forAttr.replace(/^[^_]+_/, '');
     if (text && key) labels[key] = labels[key] || text;
   }
 
-  // Skip these input types
-  const SKIP_TYPES = new Set(['submit', 'button', 'hidden', 'reset', 'image', 'file', 'search']);
+  // Types to skip entirely (non-interactive or no value to draft)
+  const SKIP_TYPES = new Set(['submit', 'button', 'hidden', 'reset', 'image', 'search']);
 
-  // Extract <input> elements
+  // Extract <input> elements — note: 'file' is NOT in SKIP_TYPES; we include it as informational
   const inputRx = /<input([^>]*?)(?:\/>|>)/gi;
   while ((m = inputRx.exec(clean)) !== null) {
     const attrs = m[1];
@@ -96,7 +103,7 @@ function parseFormFields(html) {
       type: type === 'number' ? 'text' : type,
       required,
       selector: id ? `#${id}` : name ? `[name="${name}"]` : '',
-      placeholder,
+      placeholder: type === 'file' ? 'Upload your file manually on the application page' : placeholder,
     });
   }
 
@@ -154,7 +161,10 @@ function parseFormFields(html) {
   return fields;
 }
 
-// Fetch with manual redirect following + SSRF validation on every hop
+/**
+ * Fetch a URL with manual redirect following + SSRF validation on every hop.
+ * Also enforces content-type (HTML only) and response-size limits.
+ */
 async function safeFetch(url, maxRedirects = 5) {
   let currentUrl = url;
   let redirectsLeft = maxRedirects;
@@ -168,23 +178,65 @@ async function safeFetch(url, maxRedirects = 5) {
 
     const status = res.status;
 
-    // Check for redirect responses
+    // Handle redirect responses with SSRF validation on every hop
     if ([301, 302, 303, 307, 308].includes(status)) {
       if (redirectsLeft <= 0) {
-        throw new Error('Too many redirects');
+        throw new Error('TOO_MANY_REDIRECTS: exceeded 5 redirect hops');
       }
       const location = res.headers.get('location');
-      if (!location) throw new Error('Redirect missing Location header');
+      if (!location) throw new Error('REDIRECT_NO_LOCATION: redirect missing Location header');
 
       // Resolve relative redirects against the current URL
       const nextUrl = new URL(location, currentUrl).href;
 
-      // SSRF validation on the redirect target
+      // SSRF validation on the redirect target before following it
       await validateAndResolveUrl(nextUrl);
 
       currentUrl = nextUrl;
       redirectsLeft--;
       continue;
+    }
+
+    // Enforce content-type: only parse HTML responses
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && !contentType.includes('html')) {
+      const err = new Error(`NON_HTML_RESPONSE: server returned ${contentType || 'unknown content-type'}`);
+      err.code = 'NON_HTML';
+      throw err;
+    }
+
+    // Enforce response-size limit before reading body
+    const contentLength = res.headers.get('content-length');
+    if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_BYTES) {
+      const err = new Error(`RESPONSE_TOO_LARGE: response is ${contentLength} bytes (limit: ${MAX_RESPONSE_BYTES})`);
+      err.code = 'TOO_LARGE';
+      throw err;
+    }
+
+    // For responses without Content-Length, read with size cap
+    if (res.ok) {
+      const reader = res.body?.getReader();
+      if (!reader) return res; // fallback for environments without streaming
+      const chunks = [];
+      let totalBytes = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.byteLength;
+        if (totalBytes > MAX_RESPONSE_BYTES) {
+          reader.cancel();
+          const err = new Error(`RESPONSE_TOO_LARGE: exceeded ${MAX_RESPONSE_BYTES} bytes while reading`);
+          err.code = 'TOO_LARGE';
+          throw err;
+        }
+        chunks.push(value);
+      }
+      // Reassemble into a Response-like object with the text
+      const combined = new Uint8Array(totalBytes);
+      let offset = 0;
+      for (const chunk of chunks) { combined.set(chunk, offset); offset += chunk.byteLength; }
+      const text = new TextDecoder().decode(combined);
+      return { ok: true, status: res.status, _text: text };
     }
 
     return res;
@@ -194,58 +246,93 @@ async function safeFetch(url, maxRedirects = 5) {
 export async function inspectForm(url) {
   let html = '';
   let fetchError = null;
+  let fetchErrorCode = 'FETCH_ERROR';
   let detectionType = 'detected';
 
   try {
     const res = await safeFetch(url);
 
     if (!res.ok) {
-      if (res.status === 401 || res.status === 403) {
+      const status = res.status;
+      if (status === 401 || status === 403) {
         return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'AUTH_WALL' };
       }
-      fetchError = `HTTP ${res.status}`;
+      if (status === 404) {
+        return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'NOT_FOUND' };
+      }
+      if (status === 429) {
+        return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'RATE_LIMITED' };
+      }
+      if (status >= 500) {
+        return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'SERVER_ERROR' };
+      }
+      fetchError = `HTTP_${status}`;
+      fetchErrorCode = `HTTP_${status}`;
     } else {
-      html = await res.text();
+      html = res._text ?? await res.text();
     }
   } catch (err) {
-    fetchError = err.message;
-    const msg = err.message.toLowerCase();
+    const msg = err.message || '';
+    const code = err.code || '';
+
+    // SSRF / URL validation errors: re-throw so the route can return a 400
+    if (
+      msg.includes('private') || msg.includes('reserved') ||
+      msg.includes('invalid url') || msg.includes('only http') ||
+      msg.startsWith('TOO_MANY_REDIRECTS') || msg.startsWith('REDIRECT_NO_LOCATION')
+    ) {
+      throw err;
+    }
+
     if (msg.includes('timeout') || msg.includes('aborted')) {
       return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'TIMEOUT' };
     }
-    // SSRF or URL validation error — surface clearly
-    if (msg.includes('private') || msg.includes('reserved') || msg.includes('invalid url') || msg.includes('only http')) {
-      throw err;
+    if (code === 'TOO_LARGE' || msg.includes('TOO_LARGE')) {
+      return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'RESPONSE_TOO_LARGE' };
     }
+    if (code === 'NON_HTML' || msg.includes('NON_HTML')) {
+      return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'NON_HTML_RESPONSE' };
+    }
+
+    fetchError = msg;
+    fetchErrorCode = 'FETCH_ERROR';
   }
 
   if (fetchError) {
-    return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'FETCH_ERROR' };
+    return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: fetchErrorCode };
   }
 
-  // Check for common signs the form needs JS to render
+  // Detect JS-rendered forms that won't have fields in the static HTML
   const lowerHtml = html.toLowerCase();
   const hasReactRoot = lowerHtml.includes('id="root"') || lowerHtml.includes('id="app"') || lowerHtml.includes('__next');
   const hasFormTag = /<form[\s>]/i.test(html);
   const hasInputs = /<input/i.test(html);
 
   if (!hasFormTag && !hasInputs) {
-    // JS-rendered — try to use the page text for context but fall back to common fields
-    return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: hasReactRoot ? 'JS_REQUIRED' : 'NO_FORM' };
+    return {
+      fields: COMMON_ATS_FIELDS,
+      detectionType: 'fallback',
+      error: hasReactRoot ? 'JS_REQUIRED' : 'NO_FORM',
+    };
   }
 
   const detectedFields = parseFormFields(html);
 
-  // If we found meaningful fields (>2), use them; otherwise fall back
-  const meaningfulFields = detectedFields.filter(f =>
-    f.type !== 'hidden' && (f.label || f.name)
-  );
+  // Separate file-upload sentinels from fillable fields for counting purposes
+  const fillableFields = detectedFields.filter(f => f.type !== 'file' && (f.label || f.name));
+  const uploadFields = detectedFields.filter(f => f.type === 'file' && (f.label || f.name));
 
-  if (meaningfulFields.length < 3) {
-    // Merge detected into common fields where possible
-    return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: null };
+  if (fillableFields.length < 2) {
+    // Not enough detected fields — fall back and append any detected upload fields
+    const base = [...COMMON_ATS_FIELDS];
+    for (const uf of uploadFields) {
+      if (!base.some(b => b.type === 'file')) base.splice(7, 0, uf);
+    }
+    return { fields: base, detectionType: 'fallback', error: null };
   }
 
+  // Return detected fillable fields + any detected upload fields at the front
   detectionType = 'detected';
-  return { fields: meaningfulFields, detectionType, error: null };
+  const allFields = [...uploadFields, ...fillableFields];
+  return { fields: allFields, detectionType, error: null };
 }

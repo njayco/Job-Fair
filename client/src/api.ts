@@ -894,7 +894,12 @@ export interface ApplyPrepareResponse {
   role: string;
   fields: FormField[];
   detection_type: 'detected' | 'fallback';
-  detection_error: 'AUTH_WALL' | 'TIMEOUT' | 'FETCH_ERROR' | 'JS_REQUIRED' | 'NO_FORM' | null;
+  detection_error:
+    | 'AUTH_WALL' | 'TIMEOUT' | 'FETCH_ERROR' | 'JS_REQUIRED' | 'NO_FORM'
+    | 'NOT_FOUND' | 'RATE_LIMITED' | 'SERVER_ERROR'
+    | 'RESPONSE_TOO_LARGE' | 'NON_HTML_RESPONSE'
+    | (string & {})  // catch-all for HTTP_xxx codes
+    | null;
   created_at: string;
 }
 
