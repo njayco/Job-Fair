@@ -153,6 +153,7 @@ export default function EmployerCandidateProfilePage() {
   const [generatingQs, setGeneratingQs] = useState(false);
   const [qError, setQError] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [resumeOpen, setResumeOpen] = useState(false);
 
   useEffect(() => {
     if (user && user.account_type !== 'employer') navigate('/', { replace: true });
@@ -537,6 +538,33 @@ export default function EmployerCandidateProfilePage() {
             </div>
           )}
         </div>
+
+        {/* Resume Text */}
+        {candidate.resume_text && (
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+            <button
+              onClick={() => setResumeOpen(o => !o)}
+              className="w-full flex items-center gap-2 px-6 py-4 text-left hover:bg-[var(--color-surface)]/50 transition-colors"
+            >
+              <span className="text-xs font-mono font-bold text-[var(--color-accent)] bg-[var(--color-accent)]/10 px-2 py-0.5 rounded border border-[var(--color-accent)]/20">
+                RAW
+              </span>
+              <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--color-text-muted)] flex-1">
+                Resume Text
+              </h2>
+              {resumeOpen
+                ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" />
+                : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
+            </button>
+            {resumeOpen && (
+              <div className="px-6 pb-6">
+                <pre className="text-xs font-mono leading-relaxed whitespace-pre-wrap text-[var(--color-text-muted)] bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg p-4 max-h-[500px] overflow-y-auto">
+                  {candidate.resume_text}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
     </Layout>

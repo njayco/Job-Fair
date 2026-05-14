@@ -470,7 +470,7 @@ router.get('/jobs/:id/candidates/:cid', async (req, res) => {
 
     const result = await pool.query(
       `SELECT id, filename, parsed_name, parsed_email, parsed_phone, parsed_employer,
-              match_score, status, evaluation_json, created_at
+              match_score, status, evaluation_json, resume_text, created_at
        FROM employer_candidates
        WHERE id = $1 AND job_id = $2`,
       [req.params.cid, req.params.id]

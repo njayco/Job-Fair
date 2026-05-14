@@ -656,6 +656,7 @@ export interface EmployerCandidateFull {
   match_score: number | null;
   status: string;
   evaluation_json: CandidateEvalJson | null;
+  resume_text: string | null;
   created_at: string;
 }
 
