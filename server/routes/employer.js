@@ -93,8 +93,8 @@ router.get('/jobs/:id', async (req, res) => {
               evaluation_json->'strengths' AS strengths,
               evaluation_json->'gaps' AS gaps,
               evaluation_json->>'seniority' AS seniority,
-              evaluation_json->>'comp_low' AS comp_low,
-              evaluation_json->>'comp_high' AS comp_high,
+              (evaluation_json->>'comp_low')::numeric AS comp_low,
+              (evaluation_json->>'comp_high')::numeric AS comp_high,
               created_at
        FROM employer_candidates
        WHERE job_id = $1
@@ -143,8 +143,8 @@ router.get('/jobs/:id/candidates', async (req, res) => {
               evaluation_json->'strengths' AS strengths,
               evaluation_json->'gaps' AS gaps,
               evaluation_json->>'seniority' AS seniority,
-              evaluation_json->>'comp_low' AS comp_low,
-              evaluation_json->>'comp_high' AS comp_high,
+              (evaluation_json->>'comp_low')::numeric AS comp_low,
+              (evaluation_json->>'comp_high')::numeric AS comp_high,
               created_at
        FROM employer_candidates
        WHERE job_id = $1
@@ -320,8 +320,8 @@ Respond with ONLY the JSON array, no markdown fences, no commentary.`;
                    evaluation_json->'strengths' AS strengths,
                    evaluation_json->'gaps' AS gaps,
                    evaluation_json->>'seniority' AS seniority,
-                   evaluation_json->>'comp_low' AS comp_low,
-                   evaluation_json->>'comp_high' AS comp_high,
+                   (evaluation_json->>'comp_low')::numeric AS comp_low,
+                   (evaluation_json->>'comp_high')::numeric AS comp_high,
                    created_at`,
         [
           matchScore,
@@ -336,9 +336,24 @@ Respond with ONLY the JSON array, no markdown fences, no commentary.`;
       if (row.rows.length) updatedCandidates.push(row.rows[0]);
     }
 
-    // Return sorted by score desc
-    updatedCandidates.sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0));
-    res.json({ evaluated: updatedCandidates.length, candidates: updatedCandidates });
+    // Return the full candidate list for this job (not just the batch) sorted by score desc
+    const allCandidates = await pool.query(
+      `SELECT id, filename, parsed_name, parsed_email, parsed_phone, parsed_employer,
+              match_score, status,
+              evaluation_json->>'recommendation' AS recommendation,
+              evaluation_json->>'summary' AS summary,
+              evaluation_json->'strengths' AS strengths,
+              evaluation_json->'gaps' AS gaps,
+              evaluation_json->>'seniority' AS seniority,
+              (evaluation_json->>'comp_low')::numeric AS comp_low,
+              (evaluation_json->>'comp_high')::numeric AS comp_high,
+              created_at
+       FROM employer_candidates
+       WHERE job_id = $1
+       ORDER BY match_score DESC NULLS LAST, created_at ASC`,
+      [req.params.id]
+    );
+    res.json({ evaluated: updatedCandidates.length, candidates: allCandidates.rows });
   } catch (err) {
     console.error('POST /api/employer/jobs/:id/evaluate error:', err);
     res.status(500).json({ error: 'Evaluation failed: ' + err.message });
@@ -371,8 +386,8 @@ router.patch('/jobs/:id/candidates/:cid', async (req, res) => {
                  evaluation_json->'strengths' AS strengths,
                  evaluation_json->'gaps' AS gaps,
                  evaluation_json->>'seniority' AS seniority,
-                 evaluation_json->>'comp_low' AS comp_low,
-                 evaluation_json->>'comp_high' AS comp_high,
+                 (evaluation_json->>'comp_low')::numeric AS comp_low,
+                 (evaluation_json->>'comp_high')::numeric AS comp_high,
                  created_at`,
       [status || null, req.params.cid, req.params.id]
     );
