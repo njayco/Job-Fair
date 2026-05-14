@@ -232,4 +232,23 @@ router.get('/attempts/:applicationId/:attemptId', async (req, res) => {
   }
 });
 
+// DELETE /api/apply/attempts/:applicationId/:attemptId
+router.delete('/attempts/:applicationId/:attemptId', async (req, res) => {
+  const attemptId = parseInt(req.params.attemptId, 10);
+  const applicationId = parseInt(req.params.applicationId, 10);
+  const userId = req.user.id;
+
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM apply_attempts
+       WHERE id = $1 AND application_id = $2 AND user_id = $3`,
+      [attemptId, applicationId, userId]
+    );
+    if (rowCount === 0) return res.status(404).json({ error: 'Attempt not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

@@ -965,6 +965,15 @@ export async function getApplyAttempt(application_id: number, attempt_id: number
   return data;
 }
 
+export async function deleteApplyAttempt(application_id: number, attempt_id: number): Promise<void> {
+  const res = await fetch(`/api/apply/attempts/${application_id}/${attempt_id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to delete attempt');
+}
+
 export async function prepareApply(application_id: number): Promise<ApplyPrepareResponse> {
   const res = await fetch('/api/apply/prepare', {
     method: 'POST',

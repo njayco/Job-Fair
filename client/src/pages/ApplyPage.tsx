@@ -5,13 +5,13 @@ import { Button } from '../components/ui/button';
 import {
   getApplication, prepareApply, fillApply,
   generateTailoredResumePdf, downloadBlob,
-  getApplyAttempts, getApplyAttempt,
+  getApplyAttempts, getApplyAttempt, deleteApplyAttempt,
 } from '../api';
 import type { Application, FormField, ApplyPrepareResponse, ApplyAttempt } from '../api';
 import {
   Send, ChevronLeft, ExternalLink, AlertCircle, CheckCircle, Copy, Check,
   Sparkles, FileText, Info, ClipboardList, ShieldAlert, Download, FileDown,
-  Mail, BookOpen, History, RotateCcw,
+  Mail, BookOpen, History, RotateCcw, Trash2,
 } from 'lucide-react';
 
 // ── Step indicator ─────────────────────────────────────────────────────────────
@@ -485,6 +485,9 @@ export default function ApplyPage() {
   const [attempts, setAttempts] = useState<ApplyAttempt[]>([]);
   const [attemptsLoading, setAttemptsLoading] = useState(false);
   const [loadingAttemptId, setLoadingAttemptId] = useState<number | null>(null);
+  const [deletingAttemptId, setDeletingAttemptId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [deleteToast, setDeleteToast] = useState<{ message: string; isError?: boolean } | null>(null);
 
   // Load application
   useEffect(() => {
@@ -533,6 +536,22 @@ export default function ApplyPage() {
       setLoadingAttemptId(null);
     }
   }, [appId, app]);
+
+  const handleDeleteAttempt = useCallback(async (attemptId: number) => {
+    setConfirmDeleteId(null);
+    setDeletingAttemptId(attemptId);
+    try {
+      await deleteApplyAttempt(appId, attemptId);
+      setAttempts(prev => prev.filter(a => a.id !== attemptId));
+      setDeleteToast({ message: 'Session deleted' });
+      setTimeout(() => setDeleteToast(null), 3000);
+    } catch (e) {
+      setDeleteToast({ message: e instanceof Error ? e.message : 'Failed to delete session', isError: true });
+      setTimeout(() => setDeleteToast(null), 4000);
+    } finally {
+      setDeletingAttemptId(null);
+    }
+  }, [appId]);
 
   const handleLaunch = useCallback(async () => {
     if (!appId) return;
@@ -749,23 +768,59 @@ export default function ApplyPage() {
                             })}
                           </p>
                         </div>
-                        <button
-                          onClick={() => handleLoadAttempt(attempt)}
-                          disabled={loadingAttemptId === attempt.id}
-                          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
-                        >
-                          {loadingAttemptId === attempt.id ? (
+                        <div className="shrink-0 flex items-center gap-2">
+                          {confirmDeleteId === attempt.id ? (
                             <>
-                              <div className="w-3 h-3 border border-[var(--color-primary)]/30 border-t-[var(--color-primary)] rounded-full animate-spin" />
-                              LOADING…
+                              <span className="text-[10px] font-mono text-[var(--color-text-muted)] hidden sm:inline">Delete?</span>
+                              <button
+                                onClick={() => handleDeleteAttempt(attempt.id)}
+                                disabled={deletingAttemptId === attempt.id}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-mono font-semibold rounded-lg border border-[var(--color-red-indicator)]/40 text-[var(--color-red-indicator)] hover:bg-[var(--color-red-indicator)]/5 transition-colors disabled:opacity-50"
+                              >
+                                {deletingAttemptId === attempt.id ? (
+                                  <div className="w-3 h-3 border border-current/30 border-t-current rounded-full animate-spin" />
+                                ) : (
+                                  'YES'
+                                )}
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(null)}
+                                disabled={deletingAttemptId === attempt.id}
+                                className="inline-flex items-center px-2.5 py-1.5 text-xs font-mono font-semibold rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] transition-colors disabled:opacity-50"
+                              >
+                                NO
+                              </button>
                             </>
                           ) : (
                             <>
-                              <RotateCcw className="w-3 h-3" />
-                              LOAD
+                              <button
+                                onClick={() => handleLoadAttempt(attempt)}
+                                disabled={loadingAttemptId === attempt.id || deletingAttemptId === attempt.id}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
+                              >
+                                {loadingAttemptId === attempt.id ? (
+                                  <>
+                                    <div className="w-3 h-3 border border-[var(--color-primary)]/30 border-t-[var(--color-primary)] rounded-full animate-spin" />
+                                    LOADING…
+                                  </>
+                                ) : (
+                                  <>
+                                    <RotateCcw className="w-3 h-3" />
+                                    LOAD
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={() => setConfirmDeleteId(attempt.id)}
+                                disabled={deletingAttemptId === attempt.id || loadingAttemptId === attempt.id}
+                                title="Delete session"
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-red-indicator)]/40 hover:text-[var(--color-red-indicator)] hover:bg-[var(--color-red-indicator)]/5 transition-colors disabled:opacity-40"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </>
                           )}
-                        </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -998,6 +1053,23 @@ export default function ApplyPage() {
         )}
 
       </div>
+
+      {/* Delete toast */}
+      {deleteToast && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-[var(--color-surface)] border rounded-xl shadow-lg flex items-center gap-2 text-sm font-mono ${
+          deleteToast.isError
+            ? 'border-[var(--color-red-indicator)]/40 text-[var(--color-red-indicator)]'
+            : 'border-[var(--color-border)] text-[var(--color-text-muted)]'
+        }`}>
+          {deleteToast.isError ? (
+            <AlertCircle className="w-4 h-4 shrink-0" />
+          ) : (
+            <CheckCircle className="w-4 h-4 text-[var(--color-green-indicator)] shrink-0" />
+          )}
+          {deleteToast.message}
+        </div>
+      )}
+
     </Layout>
   );
 }
