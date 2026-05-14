@@ -38,6 +38,7 @@ function CompRange({ low, high }: { low: number | null; high: number | null }) {
 function JobCard({
   job,
   onEvaluate,
+  onEvaluateAndApply,
   savedJobId,
   onSave,
   onUnsave,
@@ -47,6 +48,7 @@ function JobCard({
 }: {
   job: JobFinderResult;
   onEvaluate: (job: JobFinderResult) => void;
+  onEvaluateAndApply: (job: JobFinderResult) => void;
   savedJobId?: number;
   onSave: (job: JobFinderResult) => void;
   onUnsave: (savedId: number) => void;
@@ -172,7 +174,7 @@ function JobCard({
               </Link>
             ) : (
               <button
-                onClick={() => { onEvaluate(job); onDismissPrompt?.(); }}
+                onClick={() => { onEvaluateAndApply(job); onDismissPrompt?.(); }}
                 className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity"
               >
                 <Send className="w-3 h-3" />
@@ -348,7 +350,7 @@ export default function JobFinderPage() {
     }
   };
 
-  const handleEvaluate = (job: JobFinderResult) => {
+  const buildEvaluatePayload = (job: JobFinderResult) => {
     const jobTitle = `${job.role} at ${job.company}`;
     const header = [
       jobTitle,
@@ -358,7 +360,6 @@ export default function JobFinderPage() {
         : '',
     ].filter(Boolean).join('\n');
 
-    // Always prepend title/meta header; use full posting text body when available
     const body = job.full_text && job.full_text.trim().length > 200
       ? job.full_text.trim()
       : [
@@ -371,10 +372,20 @@ export default function JobFinderPage() {
           ...job.skill_gaps.map(g => `• ${g}`),
         ].filter(l => l !== undefined).join('\n').trim();
 
-    const jobDescription = `${header}\n\n${body}`;
+    return { jobTitle, jobDescription: `${header}\n\n${body}` };
+  };
 
+  const handleEvaluate = (job: JobFinderResult) => {
+    const { jobTitle, jobDescription } = buildEvaluatePayload(job);
     navigate('/evaluate', {
       state: { jobTitle, jobDescription, jobUrl: job.url },
+    });
+  };
+
+  const handleEvaluateAndApply = (job: JobFinderResult) => {
+    const { jobTitle, jobDescription } = buildEvaluatePayload(job);
+    navigate('/evaluate', {
+      state: { jobTitle, jobDescription, jobUrl: job.url, redirectToApply: true },
     });
   };
 
@@ -578,6 +589,7 @@ export default function JobFinderPage() {
                     key={i}
                     job={job}
                     onEvaluate={handleEvaluate}
+                    onEvaluateAndApply={handleEvaluateAndApply}
                     savedJobId={savedId}
                     onSave={handleSave}
                     onUnsave={(sid) => handleUnsave(sid, job)}

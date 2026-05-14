@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -14,6 +14,8 @@ import {
 
 export default function ResultsPage() {
   const { id } = useParams();
+  const location = useLocation();
+  const redirectToApply = !!(location.state as { redirectToApply?: boolean } | null)?.redirectToApply;
   const [app, setApp] = useState<Application | null>(null);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -166,6 +168,24 @@ export default function ResultsPage() {
         <Link to="/pipeline" className="inline-flex items-center text-sm font-mono text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors mb-4">
           <ChevronLeft className="w-4 h-4 mr-1" /> Back to Pipeline
         </Link>
+
+        {redirectToApply && app?.url && (
+          <div className="flex items-center justify-between gap-4 px-5 py-4 bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/30 rounded-xl">
+            <div className="flex items-center gap-3 min-w-0">
+              <Send className="w-5 h-5 text-[var(--color-accent)] shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[var(--color-text)]">Ready for Assisted Apply</p>
+                <p className="text-xs text-[var(--color-text-muted)]">Your evaluation is complete — let AI fill out the application form for you.</p>
+              </div>
+            </div>
+            <Link to={`/apply/${app.id}`} className="shrink-0">
+              <Button variant="accent" className="gap-2 font-mono whitespace-nowrap">
+                <Send className="w-4 h-4" />
+                START ASSISTED APPLY
+              </Button>
+            </Link>
+          </div>
+        )}
 
         {/* Header Card */}
         <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 md:p-8 space-y-6">

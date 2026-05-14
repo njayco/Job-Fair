@@ -5,11 +5,11 @@ import pool from '../db.js';
 const router = Router();
 
 // POST /api/evaluate
-// Body: { job_description, cv_content }
+// Body: { job_description, cv_content, job_url? }
 // cv_content is always required.
 router.post('/', async (req, res) => {
   try {
-    const { job_description, cv_content } = req.body;
+    const { job_description, cv_content, job_url } = req.body;
     const userId = req.user.id;
 
     if (!cv_content) {
@@ -48,7 +48,7 @@ router.post('/', async (req, res) => {
         evaluation.role || 'Unknown',
         globalScore !== undefined ? parseFloat(globalScore) : null,
         'Evaluated',
-        null,
+        job_url && job_url.trim() ? job_url.trim() : null,
         reportMd,
         evaluation.archetype || null,
         evaluation.block_a?.tldr || null,

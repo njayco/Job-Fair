@@ -58,6 +58,8 @@ export default function EvaluatePage() {
 
   const currentStage = [...PROGRESS_STAGES].reverse().find(s => progress >= s.at) ?? PROGRESS_STAGES[0];
 
+  const fromJobFinderApply = !!(location.state as { redirectToApply?: boolean } | null)?.redirectToApply;
+
   useEffect(() => {
     const savedCv = localStorage.getItem('career_ops_cv');
     if (savedCv) setCvContent(savedCv);
@@ -90,6 +92,7 @@ export default function EvaluatePage() {
       const res = await evaluate({
         cv_content: cvContent,
         job_description: jobDesc,
+        job_url: jobUrl.trim() || undefined,
       });
       complete();
       await new Promise(r => setTimeout(r, 400));
@@ -98,7 +101,9 @@ export default function EvaluatePage() {
       } catch {
         sessionStorage.setItem(`eval_${res.application_id}`, JSON.stringify(res));
       }
-      navigate(`/results/${res.application_id}`);
+      navigate(`/results/${res.application_id}`, {
+        state: fromJobFinderApply ? { redirectToApply: true } : undefined,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Evaluation failed');
       setIsEvaluating(false);
