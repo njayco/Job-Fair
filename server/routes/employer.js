@@ -22,14 +22,13 @@ const upload = multer({
     const allowed = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword',
       'text/plain',
     ];
     const ext = file.originalname.toLowerCase().split('.').pop();
-    if (allowed.includes(file.mimetype) || ['pdf','docx','doc','txt'].includes(ext)) {
+    if (allowed.includes(file.mimetype) || ['pdf','docx','txt'].includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file type: ${file.originalname}`));
+      cb(new Error(`Unsupported file type: ${file.originalname}. Please use PDF, DOCX, or TXT.`));
     }
   },
 });

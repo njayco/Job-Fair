@@ -37,6 +37,7 @@ export default function EmployerSearchPage() {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [parseErrors, setParseErrors] = useState<{ filename: string; error: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Evaluating state
@@ -86,7 +87,7 @@ export default function EmployerSearchPage() {
   // ── Upload panel ─────────────────────────────────────────────────────────────
   const addFiles = useCallback((incoming: FileList | File[]) => {
     const arr = Array.from(incoming);
-    const allowed = arr.filter(f => /\.(pdf|docx|doc|txt)$/i.test(f.name));
+    const allowed = arr.filter(f => /\.(pdf|docx|txt)$/i.test(f.name));
     setFiles(prev => {
       const names = new Set(prev.map(f => f.name));
       const fresh = allowed.filter(f => !names.has(f.name));
@@ -104,8 +105,10 @@ export default function EmployerSearchPage() {
     if (!job || !files.length) return;
     setUploadError('');
     setUploading(true);
+    setParseErrors([]);
     try {
       const uploadResult = await uploadCandidates(job.id, files);
+      if (uploadResult.errors?.length) setParseErrors(uploadResult.errors);
       if (uploadResult.uploaded === 0) {
         setUploadError('No files could be parsed. Check that uploads are valid PDF/DOCX/TXT.');
         setUploading(false);
@@ -246,6 +249,21 @@ export default function EmployerSearchPage() {
               </div>
             )}
 
+            {/* Per-file parse errors */}
+            {parseErrors.length > 0 && (
+              <div className="bg-[var(--color-yellow-indicator)]/5 border border-[var(--color-yellow-indicator)]/20 rounded-xl p-4 space-y-2">
+                <p className="text-xs font-mono font-bold text-[var(--color-yellow-indicator)] uppercase">
+                  {parseErrors.length} file{parseErrors.length !== 1 ? 's' : ''} could not be parsed
+                </p>
+                {parseErrors.map((e, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-[var(--color-text-muted)]">
+                    <span className="font-mono shrink-0 text-[var(--color-yellow-indicator)]">×</span>
+                    <span><span className="font-mono">{e.filename}</span> — {e.error}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Drop zone */}
             <div
               onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -265,7 +283,7 @@ export default function EmployerSearchPage() {
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept=".pdf,.docx,.doc,.txt"
+                accept=".pdf,.docx,.txt"
                 className="hidden"
                 onChange={e => e.target.files && addFiles(e.target.files)}
               />
