@@ -38,7 +38,7 @@ export function requireAuth(req, res, next) {
   }
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    req.user = { id: payload.id, email: payload.email };
+    req.user = { id: payload.id, email: payload.email, account_type: payload.account_type ?? 'employee' };
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired session' });

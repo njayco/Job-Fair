@@ -38,7 +38,7 @@ router.post('/signup', async (req, res) => {
     );
 
     const user = result.rows[0];
-    const token = signToken({ id: user.id, email: user.email });
+    const token = signToken({ id: user.id, email: user.email, account_type: user.account_type });
     setAuthCookie(res, token);
 
     res.status(201).json({ id: user.id, email: user.email, account_type: user.account_type, created_at: user.created_at });
@@ -58,7 +58,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT id, email, password_hash FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, account_type FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 
@@ -77,10 +77,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = signToken({ id: user.id, email: user.email });
+    const token = signToken({ id: user.id, email: user.email, account_type: user.account_type });
     setAuthCookie(res, token);
 
-    res.json({ id: user.id, email: user.email });
+    res.json({ id: user.id, email: user.email, account_type: user.account_type });
   } catch (err) {
     console.error('POST /api/auth/login error:', err);
     res.status(500).json({ error: 'Login failed' });
