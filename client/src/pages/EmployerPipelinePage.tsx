@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 import { getEmployerPipeline, updateCandidateStatus } from '../api';
 import type { PipelineCandidate } from '../api';
-import { Loader2, User, Building2, Award, X } from 'lucide-react';
+import { Loader2, User, Building2, Award, X, Search, ChevronDown } from 'lucide-react';
 
 const PIPELINE_COLS: { status: string; label: string; color: string }[] = [
   { status: 'Uploaded',     label: 'Uploaded',     color: 'text-zinc-400 border-zinc-500/20 bg-zinc-500/5' },
@@ -17,7 +17,6 @@ const PIPELINE_COLS: { status: string; label: string; color: string }[] = [
 ];
 
 const ALL_STATUSES = [...PIPELINE_COLS.map(c => c.status), 'Offer'];
-
 const SENIORITY_OPTIONS = ['junior', 'mid', 'senior', 'principal'];
 const REC_OPTIONS = ['Strong Hire', 'Hire', 'Consider', 'Weak Match', 'Do Not Proceed'];
 
@@ -99,7 +98,12 @@ export default function EmployerPipelinePage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<string>('all');
 
-  // Client-side filters
+  // New filters
+  const [nameSearch, setNameSearch] = useState('');
+  const [filterDept, setFilterDept] = useState('');
+  const [filterJobTitle, setFilterJobTitle] = useState('');
+
+  // Existing filters
   const [filterMinScore, setFilterMinScore] = useState(0);
   const [filterSeniority, setFilterSeniority] = useState<string[]>([]);
   const [filterRec, setFilterRec] = useState<string[]>([]);
@@ -120,12 +124,42 @@ export default function EmployerPipelinePage() {
     setCandidates(prev => prev.map(c => c.id === id && c.job_id === jobId ? { ...c, status } : c));
   };
 
+  const departments = useMemo(() => {
+    const seen = new Set<string>();
+    candidates.forEach(c => seen.add(c.job_department || 'Uncategorised'));
+    return Array.from(seen).sort((a, b) => {
+      if (a === 'Uncategorised') return 1;
+      if (b === 'Uncategorised') return -1;
+      return a.localeCompare(b);
+    });
+  }, [candidates]);
+
+  const jobTitlesInDept = useMemo(() => {
+    if (!filterDept) return [];
+    const seen = new Set<string>();
+    candidates
+      .filter(c => (c.job_department || 'Uncategorised') === filterDept)
+      .forEach(c => seen.add(c.job_title));
+    return Array.from(seen).sort();
+  }, [candidates, filterDept]);
+
   const totalActive = candidates.filter(c => !['Hired', 'Rejected'].includes(c.status)).length;
   const totalHired = candidates.filter(c => c.status === 'Hired').length;
 
-  const hasFilters = filterMinScore > 0 || filterSeniority.length > 0 || filterRec.length > 0 || filterEmployer.trim();
+  const hasFilters = !!(nameSearch.trim() || filterDept || filterJobTitle ||
+    filterMinScore > 0 || filterSeniority.length > 0 || filterRec.length > 0 || filterEmployer.trim());
 
   const applyFilters = (list: PipelineCandidate[]) => list.filter(c => {
+    if (nameSearch.trim()) {
+      const q = nameSearch.toLowerCase();
+      const name = (c.parsed_name || c.filename || '').toLowerCase();
+      if (!name.includes(q)) return false;
+    }
+    if (filterDept) {
+      const dept = c.job_department || 'Uncategorised';
+      if (dept !== filterDept) return false;
+    }
+    if (filterJobTitle && c.job_title !== filterJobTitle) return false;
     if (filterMinScore > 0 && (c.match_score ?? 0) < filterMinScore) return false;
     if (filterSeniority.length && !filterSeniority.includes(c.seniority ?? '')) return false;
     if (filterRec.length && !filterRec.includes(c.recommendation ?? '')) return false;
@@ -140,6 +174,36 @@ export default function EmployerPipelinePage() {
     PIPELINE_COLS.map(col => [col.status, applyFilters(candidates.filter(c => c.status === col.status)).length])
   );
   const allCount = applyFilters(candidates).length;
+
+  const grouped = useMemo(() => {
+    const deptMap = new Map<string, Map<string, PipelineCandidate[]>>();
+    filtered.forEach(c => {
+      const dept = c.job_department || 'Uncategorised';
+      if (!deptMap.has(dept)) deptMap.set(dept, new Map());
+      const titleMap = deptMap.get(dept)!;
+      if (!titleMap.has(c.job_title)) titleMap.set(c.job_title, []);
+      titleMap.get(c.job_title)!.push(c);
+    });
+    const sorted = Array.from(deptMap.entries()).sort(([a], [b]) => {
+      if (a === 'Uncategorised') return 1;
+      if (b === 'Uncategorised') return -1;
+      return a.localeCompare(b);
+    });
+    return sorted.map(([dept, titleMap]) => ({
+      dept,
+      titles: Array.from(titleMap.entries()).sort(([a], [b]) => a.localeCompare(b)),
+    }));
+  }, [filtered]);
+
+  const clearAllFilters = () => {
+    setNameSearch('');
+    setFilterDept('');
+    setFilterJobTitle('');
+    setFilterMinScore(0);
+    setFilterSeniority([]);
+    setFilterRec([]);
+    setFilterEmployer('');
+  };
 
   return (
     <Layout>
@@ -174,6 +238,64 @@ export default function EmployerPipelinePage() {
           </div>
         ) : (
           <>
+            {/* Name search bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)] pointer-events-none" />
+              <input
+                type="text"
+                value={nameSearch}
+                onChange={e => setNameSearch(e.target.value)}
+                placeholder="Search candidate by name…"
+                className="w-full pl-9 font-mono text-sm"
+              />
+              {nameSearch && (
+                <button
+                  onClick={() => setNameSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Department / Job Title dropdowns */}
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono uppercase text-[var(--color-text-muted)]">Department</label>
+                <div className="relative">
+                  <select
+                    value={filterDept}
+                    onChange={e => { setFilterDept(e.target.value); setFilterJobTitle(''); }}
+                    className="w-full font-mono text-sm appearance-none pr-8 cursor-pointer bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2"
+                  >
+                    <option value="">All departments</option>
+                    {departments.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)] pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono uppercase text-[var(--color-text-muted)]">Job Title</label>
+                <div className="relative">
+                  <select
+                    value={filterJobTitle}
+                    onChange={e => setFilterJobTitle(e.target.value)}
+                    disabled={!filterDept}
+                    className="w-full font-mono text-sm appearance-none pr-8 cursor-pointer bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-3 py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <option value="">{filterDept ? 'All titles in department' : 'Select a department first'}</option>
+                    {jobTitlesInDept.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)] pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
             {/* Filter bar */}
             <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 space-y-3">
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -244,7 +366,7 @@ export default function EmployerPipelinePage() {
                 <div className="flex items-center justify-between text-xs font-mono text-[var(--color-text-muted)]">
                   <span>{allCount} of {candidates.length} candidates match filters</span>
                   <button
-                    onClick={() => { setFilterMinScore(0); setFilterSeniority([]); setFilterRec([]); setFilterEmployer(''); }}
+                    onClick={clearAllFilters}
                     className="flex items-center gap-1 text-[var(--color-red-indicator)] hover:underline"
                   >
                     <X className="w-3 h-3" /> Clear filters
@@ -285,9 +407,39 @@ export default function EmployerPipelinePage() {
                 {hasFilters ? 'No candidates match your filters in this stage.' : 'No candidates in this stage.'}
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {filtered.map(c => (
-                  <CandidateCard key={`${c.job_id}-${c.id}`} c={c} onStatusChange={handleStatusChange} />
+              <div className="space-y-8">
+                {grouped.map(({ dept, titles }) => (
+                  <div key={dept} className="space-y-5">
+                    {/* Department heading */}
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-sm font-bold font-mono uppercase tracking-widest text-[var(--color-accent)]">
+                        {dept}
+                      </h2>
+                      <div className="flex-1 h-px bg-[var(--color-border)]" />
+                      <span className="text-xs font-mono text-[var(--color-text-muted)]">
+                        {titles.reduce((n, [, cs]) => n + cs.length, 0)} candidate{titles.reduce((n, [, cs]) => n + cs.length, 0) !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    {/* Job title groups within department */}
+                    {titles.map(([title, cs]) => (
+                      <div key={title} className="space-y-3 pl-4 border-l-2 border-[var(--color-border)]">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xs font-mono font-semibold text-[var(--color-text-muted)] uppercase">
+                            {title}
+                          </h3>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-border)]/40 text-[var(--color-text-muted)]">
+                            {cs.length}
+                          </span>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {cs.map(c => (
+                            <CandidateCard key={`${c.job_id}-${c.id}`} c={c} onStatusChange={handleStatusChange} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ))}
               </div>
             )}

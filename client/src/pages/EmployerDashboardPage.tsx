@@ -122,6 +122,11 @@ export default function EmployerDashboardPage() {
                   <div className="flex-1 min-w-0 space-y-2">
                     <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="font-bold text-[var(--color-text)] font-mono">{job.title}</h3>
+                      {job.department && (
+                        <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-[var(--color-border)]/40 text-[var(--color-text-muted)] border border-[var(--color-border)]">
+                          {job.department}
+                        </span>
+                      )}
                       {job.candidate_count != null && job.candidate_count > 0 && (
                         <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20">
                           {job.candidate_count} candidate{job.candidate_count !== 1 ? 's' : ''}

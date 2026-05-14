@@ -31,6 +31,7 @@ export default function EmployerSearchPage() {
 
   // JD panel
   const [jdTitle, setJdTitle] = useState('');
+  const [jdDepartment, setJdDepartment] = useState('');
   const [jdText, setJdText] = useState('');
   const [savingJd, setSavingJd] = useState(false);
   const [jdError, setJdError] = useState('');
@@ -83,7 +84,7 @@ export default function EmployerSearchPage() {
     setJdError('');
     setSavingJd(true);
     try {
-      const newJob = await createEmployerJob({ title: jdTitle.trim() || undefined, description_text: jdText.trim() });
+      const newJob = await createEmployerJob({ title: jdTitle.trim() || undefined, department: jdDepartment.trim() || undefined, description_text: jdText.trim() });
       setJob(newJob);
       setStep('upload');
     } catch (err) {
@@ -222,16 +223,29 @@ export default function EmployerSearchPage() {
               </div>
             )}
 
-            <div className="space-y-2">
-              <label className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Job Title (optional)</label>
-              <input
-                type="text"
-                value={jdTitle}
-                onChange={e => setJdTitle(e.target.value)}
-                placeholder="e.g. Senior Software Engineer"
-                disabled={savingJd}
-                className="w-full font-mono text-sm"
-              />
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Job Title (optional)</label>
+                <input
+                  type="text"
+                  value={jdTitle}
+                  onChange={e => setJdTitle(e.target.value)}
+                  placeholder="e.g. Senior Software Engineer"
+                  disabled={savingJd}
+                  className="w-full font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Department (optional)</label>
+                <input
+                  type="text"
+                  value={jdDepartment}
+                  onChange={e => setJdDepartment(e.target.value)}
+                  placeholder="e.g. Engineering, Sales, Marketing"
+                  disabled={savingJd}
+                  className="w-full font-mono text-sm"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <label className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Job Description *</label>

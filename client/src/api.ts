@@ -493,6 +493,7 @@ export async function deleteSavedJob(id: number): Promise<{ deleted: boolean; id
 export interface EmployerJob {
   id: number;
   title: string;
+  department: string | null;
   description_text: string;
   candidate_count?: number;
   avg_score?: number;
@@ -525,7 +526,7 @@ export async function getEmployerJobs(): Promise<{ jobs: EmployerJob[] }> {
   return data;
 }
 
-export async function createEmployerJob(body: { title?: string; description_text: string }): Promise<EmployerJob> {
+export async function createEmployerJob(body: { title?: string; department?: string; description_text: string }): Promise<EmployerJob> {
   const res = await fetch('/api/employer/jobs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -663,6 +664,7 @@ export interface EmployerCandidateFull {
 export interface PipelineCandidate extends EmployerCandidate {
   job_id: number;
   job_title: string;
+  job_department: string | null;
 }
 
 export async function getEmployerCandidate(

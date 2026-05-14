@@ -39,7 +39,7 @@ const upload = multer({
 router.get('/jobs', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT j.id, j.title, j.description_text, j.created_at,
+      `SELECT j.id, j.title, j.department, j.description_text, j.created_at,
               COUNT(c.id)::int AS candidate_count,
               ROUND(AVG(c.match_score))::int AS avg_score
        FROM employer_jobs j
@@ -59,15 +59,15 @@ router.get('/jobs', async (req, res) => {
 // POST /api/employer/jobs
 router.post('/jobs', async (req, res) => {
   try {
-    const { title, description_text } = req.body;
+    const { title, department, description_text } = req.body;
     if (!description_text || description_text.trim().length < 20) {
       return res.status(400).json({ error: 'Job description is required (min 20 characters).' });
     }
     const result = await pool.query(
-      `INSERT INTO employer_jobs (user_id, title, description_text)
-       VALUES ($1, $2, $3)
-       RETURNING id, title, description_text, created_at`,
-      [req.user.id, (title || '').trim() || 'Untitled Role', description_text.trim()]
+      `INSERT INTO employer_jobs (user_id, title, department, description_text)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, title, department, description_text, created_at`,
+      [req.user.id, (title || '').trim() || 'Untitled Role', (department || '').trim() || null, description_text.trim()]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -445,7 +445,7 @@ router.get('/pipeline', async (req, res) => {
               c.evaluation_json->>'seniority' AS seniority,
               (c.evaluation_json->>'comp_low')::numeric AS comp_low,
               (c.evaluation_json->>'comp_high')::numeric AS comp_high,
-              j.id AS job_id, j.title AS job_title
+              j.id AS job_id, j.title AS job_title, j.department AS job_department
        FROM employer_candidates c
        JOIN employer_jobs j ON c.job_id = j.id
        WHERE j.user_id = $1
