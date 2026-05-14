@@ -392,6 +392,7 @@ export interface JobFinderResult {
   comp_low: number | null;
   comp_high: number | null;
   description: string;
+  full_text?: string;
 }
 
 export interface JobFinderRun {

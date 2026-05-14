@@ -210,27 +210,27 @@ export default function JobFinderPage() {
   };
 
   const handleEvaluate = (job: JobFinderResult) => {
-    const desc = [
-      `${job.role} at ${job.company}`,
-      `Location: ${job.location}${job.remote_ok ? ' (Remote OK)' : ''}`,
-      job.comp_low || job.comp_high
-        ? `Compensation: $${job.comp_low ? Math.round(job.comp_low / 1000) : '?'}K–$${job.comp_high ? Math.round(job.comp_high / 1000) : '?'}K/year`
-        : '',
-      '',
-      job.description,
-      '',
-      '--- Why you match ---',
-      ...job.why_match.map(b => `• ${b}`),
-      '',
-      job.skill_gaps.length ? '--- Skill gaps ---' : '',
-      ...job.skill_gaps.map(g => `• ${g}`),
-    ].filter(l => l !== undefined).join('\n').trim();
+    // Prefer full posting text from Exa; fall back to assembled summary
+    const jobDescription = job.full_text && job.full_text.trim().length > 200
+      ? job.full_text.trim()
+      : [
+          `${job.role} at ${job.company}`,
+          `Location: ${job.location}${job.remote_ok ? ' (Remote OK)' : ''}`,
+          job.comp_low || job.comp_high
+            ? `Compensation: $${job.comp_low ? Math.round(job.comp_low / 1000) : '?'}K–$${job.comp_high ? Math.round(job.comp_high / 1000) : '?'}K/year`
+            : '',
+          '',
+          job.description,
+          '',
+          'Why you match:',
+          ...job.why_match.map(b => `• ${b}`),
+          '',
+          job.skill_gaps.length ? 'Skill gaps:' : '',
+          ...job.skill_gaps.map(g => `• ${g}`),
+        ].filter(l => l !== undefined).join('\n').trim();
 
     navigate('/evaluate', {
-      state: {
-        jobDescription: desc,
-        jobUrl: job.url,
-      },
+      state: { jobDescription, jobUrl: job.url },
     });
   };
 

@@ -5,50 +5,77 @@ import pool from '../db.js';
 const router = Router();
 
 const EXA_BASE = 'https://api.exa.ai';
+
+// Broad domain list — LinkedIn and Indeed included per requirement,
+// though ATS boards (Greenhouse/Lever/Wellfound) tend to yield richer content
 const JOB_DOMAINS = [
+  'linkedin.com',
+  'indeed.com',
   'greenhouse.io',
+  'boards.greenhouse.io',
   'lever.co',
+  'jobs.lever.co',
   'wellfound.com',
   'jobs.ashbyhq.com',
   'workable.com',
-  'myworkdayjobs.com',
   'smartrecruiters.com',
-  'boards.greenhouse.io',
-  'jobs.lever.co',
 ];
 
-async function exaSearch(query) {
+function exaHeaders() {
   const apiKey = process.env.EXA_API_KEY;
   if (!apiKey) throw new Error('EXA_API_KEY is not configured.');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`,
+  };
+}
 
+// Step 1 — Search: returns up to numResults URLs + titles, no heavy content
+async function exaSearch(query, numResults = 5) {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const res = await fetch(`${EXA_BASE}/search`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
+    headers: exaHeaders(),
     body: JSON.stringify({
       query,
-      numResults: 5,
+      numResults,
       includeDomains: JOB_DOMAINS,
       startPublishedDate: thirtyDaysAgo,
       type: 'neural',
-      contents: {
-        text: { maxCharacters: 2500 },
-      },
     }),
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(20000),
   });
 
   if (!res.ok) {
     const err = await res.text().catch(() => res.statusText);
-    console.error(`Exa search failed (${res.status}):`, err);
+    console.error(`Exa search failed (${res.status}): ${err}`);
     return { results: [] };
   }
-
   return res.json();
+}
+
+// Step 2 — Contents: fetch full text for a list of URLs via POST /contents
+async function exaContents(urls, maxCharacters = 4000) {
+  if (!urls.length) return [];
+
+  const res = await fetch(`${EXA_BASE}/contents`, {
+    method: 'POST',
+    headers: exaHeaders(),
+    body: JSON.stringify({
+      ids: urls,
+      text: { maxCharacters },
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.statusText);
+    console.error(`Exa /contents failed (${res.status}): ${err}`);
+    return [];
+  }
+  const data = await res.json();
+  return Array.isArray(data.results) ? data.results : [];
 }
 
 function buildSearchQueries(topRoles, preferences) {
@@ -79,9 +106,10 @@ function buildScoringPrompt(cvContent, jobs, preferences) {
   const jobList = jobs.map((j, i) => `
 --- JOB ${i + 1} ---
 URL: ${j.url}
+Title: ${j.title || 'Unknown'}
 Published: ${j.publishedDate || 'Unknown'}
-Text:
-${(j.text || '').slice(0, 2200)}
+Full Text:
+${(j.text || '').slice(0, 3500)}
 `).join('\n');
 
   return `You are an expert career strategist. Score each job posting against the candidate's CV.
@@ -90,7 +118,7 @@ ${(j.text || '').slice(0, 2200)}
 ${prefs || 'No specific preferences.'}
 
 ## Candidate CV
-${cvContent.slice(0, 3500)}
+${cvContent.slice(0, 3000)}
 
 ## Job Postings (${jobs.length} total)
 ${jobList}
@@ -162,6 +190,7 @@ router.post('/', async (req, res) => {
   try {
     const { cv_content: cvFromBody, preferences = {} } = req.body;
 
+    // Resolve CV
     let cvContent = '';
     if (cvFromBody && typeof cvFromBody === 'string' && cvFromBody.trim().length >= 50) {
       cvContent = cvFromBody.trim();
@@ -179,6 +208,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'No CV found. Please paste your resume.', code: 'NO_CV' });
     }
 
+    // Get top career match roles
     const matchResult = await pool.query(
       `SELECT result_json->'career_matches' AS matches
        FROM career_matches WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
@@ -186,39 +216,67 @@ router.post('/', async (req, res) => {
     );
     const careerMatches = matchResult.rows[0]?.matches || [];
     const topRoles = careerMatches.slice(0, 3).map(m => m.role).filter(Boolean);
-
     if (!topRoles.length) {
-      if (preferences.focus_area?.trim()) topRoles.push(preferences.focus_area.trim());
-      else topRoles.push('senior professional');
+      topRoles.push(preferences.focus_area?.trim() || 'senior professional');
     }
 
+    // STEP 1 — Exa search: get URLs and titles (no heavy content yet)
     const queries = buildSearchQueries(topRoles, preferences);
-    console.log('Job Finder: Exa queries:', queries);
+    console.log('Job Finder: Exa search queries:', queries);
 
-    const searchResults = await Promise.allSettled(queries.map(q => exaSearch(q)));
+    const searchResults = await Promise.allSettled(queries.map(q => exaSearch(q, 5)));
 
     const seen = new Set();
-    const allJobs = [];
+    const searchItems = [];
     for (const r of searchResults) {
       if (r.status === 'fulfilled' && Array.isArray(r.value?.results)) {
-        for (const job of r.value.results) {
-          if (job.url && !seen.has(job.url) && job.text?.length > 100) {
-            seen.add(job.url);
-            allJobs.push(job);
+        for (const item of r.value.results) {
+          if (item.url && !seen.has(item.url)) {
+            seen.add(item.url);
+            searchItems.push(item);
           }
         }
       }
     }
 
-    console.log(`Job Finder: ${allJobs.length} unique postings from Exa`);
+    console.log(`Job Finder: ${searchItems.length} unique URLs from Exa search`);
 
-    if (!allJobs.length) {
+    if (!searchItems.length) {
       return res.status(400).json({
         error: 'No job postings found. Try adjusting your preferences or running Career Matching first.',
         code: 'NO_RESULTS',
       });
     }
 
+    // Cap at 15 for cost efficiency
+    const urlsToFetch = searchItems.slice(0, 15).map(i => i.url);
+
+    // STEP 2 — Exa /contents: retrieve full text for each job URL
+    console.log(`Job Finder: fetching full content for ${urlsToFetch.length} URLs via Exa /contents`);
+    const contentItems = await exaContents(urlsToFetch, 4000);
+
+    // Merge content back with search metadata; fall back to search item if /contents missed it
+    const contentMap = new Map(contentItems.map(c => [c.url, c]));
+    const allJobs = searchItems.slice(0, 15).map(item => {
+      const content = contentMap.get(item.url);
+      return {
+        url: item.url,
+        title: content?.title || item.title || '',
+        publishedDate: content?.publishedDate || item.publishedDate || '',
+        text: content?.text || '',
+      };
+    }).filter(j => j.text && j.text.length > 100);
+
+    console.log(`Job Finder: ${allJobs.length} jobs with full content for scoring`);
+
+    if (!allJobs.length) {
+      return res.status(400).json({
+        error: 'Could not retrieve job posting content. Please try again.',
+        code: 'NO_CONTENT',
+      });
+    }
+
+    // STEP 3 — Claude scoring
     const scoringPrompt = buildScoringPrompt(cvContent, allJobs, preferences);
     const message = await anthropicClient.messages.create({
       model: MODEL,
@@ -241,22 +299,28 @@ router.post('/', async (req, res) => {
 
     if (!Array.isArray(scored)) throw new Error('AI returned invalid scoring format.');
 
+    // Normalize, attach full_text for Evaluate handoff, sort by match_pct
     const normalized = scored
       .filter(j => j && typeof j.match_pct === 'number')
-      .map(j => ({
-        index: Number(j.index),
-        role: String(j.role || 'Unknown Role'),
-        company: String(j.company || 'Unknown Company'),
-        url: String(j.url || ''),
-        location: String(j.location || 'Unknown'),
-        remote_ok: Boolean(j.remote_ok),
-        match_pct: Math.min(99, Math.max(0, Math.round(Number(j.match_pct)))),
-        why_match: Array.isArray(j.why_match) ? j.why_match.map(String) : [],
-        skill_gaps: Array.isArray(j.skill_gaps) ? j.skill_gaps.map(String) : [],
-        comp_low: j.comp_low ? Number(j.comp_low) : null,
-        comp_high: j.comp_high ? Number(j.comp_high) : null,
-        description: String(j.description || ''),
-      }))
+      .map((j, i) => {
+        const sourceJob = allJobs[Number(j.index ?? i + 1) - 1] || allJobs[i] || {};
+        return {
+          index: Number(j.index ?? i + 1),
+          role: String(j.role || 'Unknown Role'),
+          company: String(j.company || 'Unknown Company'),
+          url: String(j.url || sourceJob.url || ''),
+          location: String(j.location || 'Unknown'),
+          remote_ok: Boolean(j.remote_ok),
+          match_pct: Math.min(99, Math.max(0, Math.round(Number(j.match_pct)))),
+          why_match: Array.isArray(j.why_match) ? j.why_match.map(String) : [],
+          skill_gaps: Array.isArray(j.skill_gaps) ? j.skill_gaps.map(String) : [],
+          comp_low: j.comp_low ? Number(j.comp_low) : null,
+          comp_high: j.comp_high ? Number(j.comp_high) : null,
+          description: String(j.description || ''),
+          // Full posting text for pre-populating Evaluate page
+          full_text: String(sourceJob.text || '').slice(0, 6000),
+        };
+      })
       .sort((a, b) => b.match_pct - a.match_pct);
 
     const insertResult = await pool.query(
@@ -274,9 +338,7 @@ router.post('/', async (req, res) => {
 
   } catch (err) {
     console.error('POST /api/job-finder error:', err);
-    res.status(500).json({
-      error: err.message || 'Job search failed. Please try again.',
-    });
+    res.status(500).json({ error: err.message || 'Job search failed. Please try again.' });
   }
 });
 
