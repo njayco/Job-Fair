@@ -870,6 +870,26 @@ export async function getScannerRun(id: number): Promise<ScannerRun> {
   };
 }
 
+export interface DiscoveredCompany {
+  name: string;
+  api_type: ScannerApiType;
+  api_slug: string;
+  fit_score: number;
+  fit_reason: string;
+}
+
+export async function discoverScannerCompanies(cvContent?: string): Promise<{ companies: DiscoveredCompany[] }> {
+  const res = await fetch('/api/scanner/discover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(cvContent ? { cv_content: cvContent } : {}),
+  });
+  const data = await res.json();
+  if (!res.ok) throw Object.assign(new Error(data.error || 'Discovery failed'), { code: data.code });
+  return data;
+}
+
 export async function resetScannerHistory(): Promise<{ reset: boolean }> {
   const res = await fetch('/api/scanner/history', {
     method: 'DELETE',

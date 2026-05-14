@@ -5,10 +5,11 @@ import { Button } from '../components/ui/button';
 import {
   getScannerCompanies, addScannerCompany, updateScannerCompany, deleteScannerCompany,
   getScannerConfig, updateScannerConfig, runScanner, getScannerRuns, getScannerRun,
-  resetScannerHistory, getCv,
+  resetScannerHistory, getCv, discoverScannerCompanies,
 } from '../api';
 import type {
   ScannerCompany, ScannerJobResult, ScannerRun, ScannerRunSummary, ScannerApiType,
+  DiscoveredCompany,
 } from '../api';
 import {
   Radar, Play, Building2, Clock, AlertCircle, ExternalLink,
@@ -195,6 +196,13 @@ export default function ScannerPage() {
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
 
+  // Discovery
+  const [discovering, setDiscovering] = useState(false);
+  const [discoveredCompanies, setDiscoveredCompanies] = useState<DiscoveredCompany[]>([]);
+  const [discoverError, setDiscoverError] = useState('');
+  const [discoverPanel, setDiscoverPanel] = useState(false);
+  const [addingSlug, setAddingSlug] = useState<string | null>(null);
+
   // Resume / CV
   const [cvContent, setCvContent] = useState('');
   const [cvExpanded, setCvExpanded] = useState(false);
@@ -311,6 +319,57 @@ export default function ScannerPage() {
       setNewCompany({ name: '', api_type: 'greenhouse', api_slug: '' });
       setShowAddForm(false);
     } catch (e: unknown) { setAddError(e instanceof Error ? e.message : 'Failed to add company.'); }
+  };
+
+  // ── Discovery ─────────────────────────────────────────────────────────────
+
+  const handleDiscover = async () => {
+    if (!cvContent.trim() || cvContent.trim().length < 50) {
+      setDiscoverError('Please add your CV/resume above before running discovery.');
+      setDiscoverPanel(true);
+      return;
+    }
+    setDiscovering(true);
+    setDiscoverError('');
+    setDiscoveredCompanies([]);
+    setDiscoverPanel(true);
+    try {
+      const result = await discoverScannerCompanies(cvContent.trim());
+      setDiscoveredCompanies(result.companies);
+    } catch (e: unknown) {
+      const err = e as Error & { code?: string };
+      if (err.code === 'NO_CV') {
+        setDiscoverError('No CV found. Add your resume in the card above, then try again.');
+      } else {
+        setDiscoverError(err.message || 'Discovery failed. Please try again.');
+      }
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  const handleAddDiscovered = async (c: DiscoveredCompany) => {
+    setAddingSlug(c.api_slug);
+    try {
+      const added = await addScannerCompany({ name: c.name, api_type: c.api_type, api_slug: c.api_slug });
+      setCompanies(prev => [...prev, added].sort((a, b) => a.name.localeCompare(b.name)));
+      setDiscoveredCompanies(prev => prev.filter(d => d.api_slug !== c.api_slug));
+    } catch (e) {
+      console.error('Add discovered company failed:', e);
+    } finally {
+      setAddingSlug(null);
+    }
+  };
+
+  const handleAddAllDiscovered = async () => {
+    const toAdd = [...discoveredCompanies];
+    setDiscoveredCompanies([]);
+    for (const c of toAdd) {
+      try {
+        const added = await addScannerCompany({ name: c.name, api_type: c.api_type, api_slug: c.api_slug });
+        setCompanies(prev => [...prev, added].sort((a, b) => a.name.localeCompare(b.name)));
+      } catch {}
+    }
   };
 
   // ── Keywords ──────────────────────────────────────────────────────────────
@@ -700,7 +759,7 @@ export default function ScannerPage() {
                 placeholder="Filter companies…"
                 className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] transition-colors w-56"
               />
-              <div className="flex gap-1.5 ml-auto">
+              <div className="flex flex-wrap gap-1.5 ml-auto">
                 <button
                   onClick={() => filteredCompanies.filter(c => !c.enabled).forEach(c => handleToggle(c))}
                   className="text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors"
@@ -710,6 +769,14 @@ export default function ScannerPage() {
                   className="text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
                 >Disable All</button>
                 <button
+                  onClick={handleDiscover}
+                  disabled={discovering}
+                  className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--color-yellow-indicator)]/50 text-[var(--color-yellow-indicator)] hover:bg-[var(--color-yellow-indicator)]/5 transition-colors disabled:opacity-50"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {discovering ? 'Discovering…' : 'Discover with AI'}
+                </button>
+                <button
                   onClick={() => setShowAddForm(v => !v)}
                   className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors"
                 >
@@ -717,6 +784,106 @@ export default function ScannerPage() {
                 </button>
               </div>
             </div>
+
+            {/* Discovery panel */}
+            {discoverPanel && (
+              <div className="bg-[var(--color-surface)] border border-[var(--color-yellow-indicator)]/30 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--color-border)]">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[var(--color-yellow-indicator)]" />
+                    <span className="text-sm font-bold font-mono text-[var(--color-text)]">AI-Discovered Companies</span>
+                    {discovering && (
+                      <span className="text-xs font-mono text-[var(--color-text-muted)] animate-pulse">
+                        Searching ATS portals…
+                      </span>
+                    )}
+                    {!discovering && discoveredCompanies.length > 0 && (
+                      <span className="text-xs font-mono text-[var(--color-text-muted)]">
+                        {discoveredCompanies.length} found — ranked by CV fit
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {discoveredCompanies.length > 1 && (
+                      <button
+                        onClick={handleAddAllDiscovered}
+                        className="text-xs font-mono px-3 py-1 rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors"
+                      >
+                        Add All ({discoveredCompanies.length})
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setDiscoverPanel(false)}
+                      className="p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {discoverError && (
+                  <div className="px-5 py-4 flex items-start gap-2 text-sm text-[var(--color-red-indicator)]">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{discoverError}</span>
+                  </div>
+                )}
+
+                {discovering && !discoverError && (
+                  <div className="px-5 py-6 text-center space-y-2">
+                    <p className="text-sm font-mono text-[var(--color-text-muted)] animate-pulse">
+                      Generating queries from your CV · Searching Greenhouse, Lever, Ashby · Ranking by fit…
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)] opacity-60">This takes about 20–40 seconds</p>
+                  </div>
+                )}
+
+                {!discovering && discoveredCompanies.length === 0 && !discoverError && (
+                  <div className="px-5 py-6 text-center text-sm text-[var(--color-text-muted)]">
+                    No new companies discovered. All relevant companies may already be in your watchlist, or try again with a more detailed CV.
+                  </div>
+                )}
+
+                {discoveredCompanies.length > 0 && (
+                  <div className="divide-y divide-[var(--color-border)] max-h-[480px] overflow-y-auto">
+                    {discoveredCompanies.map(c => {
+                      const scoreColor = c.fit_score >= 80
+                        ? 'text-[var(--color-green-indicator)]'
+                        : c.fit_score >= 60
+                        ? 'text-[var(--color-yellow-indicator)]'
+                        : 'text-[var(--color-text-muted)]';
+                      return (
+                        <div key={c.api_slug} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-bg)]/40 transition-colors">
+                          <div className={`w-10 text-center font-bold font-mono text-sm shrink-0 ${scoreColor}`}>
+                            {c.fit_score}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm text-[var(--color-text)]">{c.name}</span>
+                              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text-muted)]">
+                                {API_TYPE_LABELS[c.api_type as ScannerApiType] ?? c.api_type} · {c.api_slug}
+                              </span>
+                            </div>
+                            {c.fit_reason && (
+                              <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate" title={c.fit_reason}>
+                                {c.fit_reason}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleAddDiscovered(c)}
+                            disabled={addingSlug === c.api_slug}
+                            className="shrink-0 inline-flex items-center gap-1 text-xs font-mono px-2.5 py-1.5 rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
+                          >
+                            <Plus className="w-3 h-3" />
+                            {addingSlug === c.api_slug ? '…' : 'Add'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {showAddForm && (
               <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 space-y-4">
