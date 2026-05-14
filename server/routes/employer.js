@@ -182,7 +182,6 @@ router.post('/jobs/:id/candidates/upload', upload.array('resumes', 20), async (r
           `INSERT INTO employer_candidates
              (job_id, filename, resume_text, parsed_name, parsed_email, parsed_phone, status)
            VALUES ($1, $2, $3, $4, $5, $6, 'Uploaded')
-           ON CONFLICT DO NOTHING
            RETURNING id, filename, parsed_name, parsed_email, parsed_phone, status, created_at`,
           [req.params.id, file.originalname, text, contact.parsed_name, contact.parsed_email, contact.parsed_phone]
         );
