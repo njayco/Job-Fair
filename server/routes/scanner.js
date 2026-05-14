@@ -176,6 +176,14 @@ function buildJobDescription(job) {
 // ── Seed helpers ──────────────────────────────────────────────────────────────
 
 async function ensureCompaniesSeeded(userId) {
+  // Only seed once per user — check the flag in scanner_config.
+  // If the user later deletes all companies, we respect that choice and don't re-seed.
+  const { rows: cfg } = await pool.query(
+    'SELECT companies_seeded FROM scanner_config WHERE user_id = $1',
+    [userId]
+  );
+  if (cfg.length > 0 && cfg[0].companies_seeded) return;
+
   const { rows } = await pool.query(
     'SELECT COUNT(*) AS cnt FROM scanner_companies WHERE user_id = $1',
     [userId]
@@ -187,6 +195,11 @@ async function ensureCompaniesSeeded(userId) {
         [userId, c.name, c.api_type, c.api_slug]
       );
     }
+    // Mark as seeded so future company deletions don't trigger re-seeding
+    await pool.query(
+      'UPDATE scanner_config SET companies_seeded = TRUE WHERE user_id = $1',
+      [userId]
+    );
   }
 }
 
@@ -258,7 +271,14 @@ router.patch('/companies/:id', async (req, res) => {
     const vals = [];
     let idx = 1;
     if (name !== undefined)      { fields.push(`name=$${idx++}`);      vals.push(name); }
-    if (api_type !== undefined)  { fields.push(`api_type=$${idx++}`);  vals.push(api_type); }
+    if (api_type !== undefined) {
+      const validTypes = ['greenhouse', 'greenhouse_eu', 'ashby', 'lever'];
+      if (!validTypes.includes(api_type)) {
+        return res.status(400).json({ error: `api_type must be one of: ${validTypes.join(', ')}` });
+      }
+      fields.push(`api_type=$${idx++}`);
+      vals.push(api_type);
+    }
     if (api_slug !== undefined)  { fields.push(`api_slug=$${idx++}`);  vals.push(api_slug); }
     if (enabled !== undefined)   { fields.push(`enabled=$${idx++}`);   vals.push(enabled); }
     if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });

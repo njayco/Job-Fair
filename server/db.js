@@ -180,6 +180,7 @@ const SCHEMA_SQL = `
   ALTER TABLE scanner_runs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'completed';
   ALTER TABLE scanner_runs ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;
   ALTER TABLE scanner_runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP;
+  ALTER TABLE scanner_config ADD COLUMN IF NOT EXISTS companies_seeded BOOLEAN NOT NULL DEFAULT FALSE;
 `;
 
 export async function bootstrapSchema() {
