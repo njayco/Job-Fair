@@ -38,7 +38,6 @@ function App() {
           {/* Employer-side protected routes */}
           <Route path="/employer" element={<ProtectedRoute><EmployerDashboardPage /></ProtectedRoute>} />
           <Route path="/employer/search" element={<ProtectedRoute><EmployerSearchPage /></ProtectedRoute>} />
-          <Route path="/employer/jobs/:id" element={<ProtectedRoute><EmployerDashboardPage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
