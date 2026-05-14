@@ -609,12 +609,23 @@ export async function updateCandidateStatus(
   return data;
 }
 
-export type CandidateStatus = 'Uploaded' | 'Evaluated' | 'Interviewing' | 'Offer' | 'Hired' | 'Rejected';
-export const CANDIDATE_STATUSES: CandidateStatus[] = ['Evaluated', 'Interviewing', 'Offer', 'Hired', 'Rejected'];
+export type CandidateStatus = 'Uploaded' | 'Evaluated' | 'Interviewing' | 'Final Round' | 'Offer Sent' | 'Offer' | 'Hired' | 'Rejected';
+export const CANDIDATE_STATUSES: CandidateStatus[] = ['Uploaded', 'Evaluated', 'Interviewing', 'Final Round', 'Offer Sent', 'Hired', 'Rejected'];
 
 export interface InterviewQuestion {
   question: string;
   rationale: string;
+}
+
+export interface SkillMatchItem {
+  requirement: string;
+  met: boolean;
+  note: string;
+}
+
+export interface InterviewStrategy {
+  focus_areas: string[];
+  red_flags: string[];
 }
 
 export interface CandidateEvalJson {
@@ -625,6 +636,12 @@ export interface CandidateEvalJson {
   seniority: string | null;
   comp_low: number | null;
   comp_high: number | null;
+  role_alignment?: string;
+  skill_match?: SkillMatchItem[];
+  seniority_rationale?: string;
+  comp_context?: string;
+  profile_analysis?: string;
+  interview_strategy?: InterviewStrategy;
   interview_questions?: InterviewQuestion[];
 }
 

@@ -237,7 +237,8 @@ ${job.description_text}
 CANDIDATES (${candidates.length} total):
 ${candidateBlocks}
 
-Return a valid JSON array of exactly ${candidates.length} objects, one per candidate in order:
+Return a valid JSON array of exactly ${candidates.length} objects, one per candidate in order.
+Each object must have ALL of these fields:
 [
   {
     "index": 1,
@@ -245,14 +246,26 @@ Return a valid JSON array of exactly ${candidates.length} objects, one per candi
     "email": "extracted email or null",
     "phone": "extracted phone or null",
     "current_employer": "most recent employer or null",
-    "match_score": 0-100,
-    "strengths": ["3 specific bullets about why they fit this role"],
-    "gaps": ["1-2 honest gaps vs the JD"],
+    "match_score": 0-100 integer,
+    "recommendation": "Strong Hire|Hire|Consider|Weak Match|Do Not Proceed",
+    "summary": "2-3 sentence executive overview of this candidate vs the role",
+    "role_alignment": "1-2 paragraph narrative on how well this candidate aligns with the role requirements",
+    "skill_match": [
+      { "requirement": "key requirement from JD", "met": true, "note": "brief evidence from resume" },
+      { "requirement": "another requirement", "met": false, "note": "what is missing" }
+    ],
+    "strengths": ["3 specific strength bullets grounded in the resume"],
+    "gaps": ["1-2 honest gap bullets vs the JD"],
     "seniority": "junior|mid|senior|principal",
+    "seniority_rationale": "1-2 sentence explanation of the seniority assessment",
     "comp_low": annual USD integer or null,
     "comp_high": annual USD integer or null,
-    "recommendation": "Strong Hire|Hire|Consider|Weak Match|Do Not Proceed",
-    "summary": "2-3 sentence executive overview of this candidate vs the role"
+    "comp_context": "1 sentence on compensation market context for this profile",
+    "profile_analysis": "2-3 sentences on professional branding, career progression, and trajectory signals",
+    "interview_strategy": {
+      "focus_areas": ["area1 to probe in interview", "area2"],
+      "red_flags": ["specific red flag to address", "another flag if present"]
+    }
   }
 ]
 
@@ -293,6 +306,19 @@ Respond with ONLY the JSON array, no markdown fences, no commentary.`;
       const strengths = Array.isArray(s.strengths) ? s.strengths.filter(x => typeof x === 'string') : [];
       const gaps = Array.isArray(s.gaps) ? s.gaps.filter(x => typeof x === 'string') : [];
       const summary = typeof s.summary === 'string' ? s.summary : '';
+      const roleAlignment = typeof s.role_alignment === 'string' ? s.role_alignment : '';
+      const skillMatch = Array.isArray(s.skill_match) ? s.skill_match.map(m => ({
+        requirement: typeof m.requirement === 'string' ? m.requirement : '',
+        met: typeof m.met === 'boolean' ? m.met : false,
+        note: typeof m.note === 'string' ? m.note : '',
+      })).filter(m => m.requirement) : [];
+      const seniorityRationale = typeof s.seniority_rationale === 'string' ? s.seniority_rationale : '';
+      const compContext = typeof s.comp_context === 'string' ? s.comp_context : '';
+      const profileAnalysis = typeof s.profile_analysis === 'string' ? s.profile_analysis : '';
+      const interviewStrategy = s.interview_strategy && typeof s.interview_strategy === 'object' ? {
+        focus_areas: Array.isArray(s.interview_strategy.focus_areas) ? s.interview_strategy.focus_areas.filter(x => typeof x === 'string') : [],
+        red_flags: Array.isArray(s.interview_strategy.red_flags) ? s.interview_strategy.red_flags.filter(x => typeof x === 'string') : [],
+      } : { focus_areas: [], red_flags: [] };
       const evalJson = {
         recommendation,
         summary,
@@ -301,6 +327,12 @@ Respond with ONLY the JSON array, no markdown fences, no commentary.`;
         seniority,
         comp_low: compLow,
         comp_high: compHigh,
+        role_alignment: roleAlignment,
+        skill_match: skillMatch,
+        seniority_rationale: seniorityRationale,
+        comp_context: compContext,
+        profile_analysis: profileAnalysis,
+        interview_strategy: interviewStrategy,
       };
       const row = await pool.query(
         `UPDATE employer_candidates
@@ -369,7 +401,7 @@ router.patch('/jobs/:id/candidates/:cid', async (req, res) => {
     if (!jobCheck.rows.length) return res.status(404).json({ error: 'Job not found.' });
 
     const { status } = req.body;
-    const VALID_STATUSES = ['Uploaded', 'Evaluated', 'Interviewing', 'Offer', 'Hired', 'Rejected'];
+    const VALID_STATUSES = ['Uploaded', 'Evaluated', 'Interviewing', 'Final Round', 'Offer Sent', 'Offer', 'Hired', 'Rejected'];
     if (status && !VALID_STATUSES.includes(status)) {
       return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` });
     }
@@ -515,9 +547,13 @@ Respond with ONLY the JSON array, no markdown fences, no commentary.`;
     }
 
     const cleaned = questions.slice(0, 10).map(q => ({
-      question: typeof q.question === 'string' ? q.question : '',
-      rationale: typeof q.rationale === 'string' ? q.rationale : '',
+      question: typeof q.question === 'string' ? q.question.trim() : '',
+      rationale: typeof q.rationale === 'string' ? q.rationale.trim() : '',
     })).filter(q => q.question);
+
+    if (cleaned.length < 10) {
+      return res.status(502).json({ error: `AI returned only ${cleaned.length} valid questions (expected 10). Please try again.` });
+    }
 
     const updatedJson = { ...(cand.evaluation_json || {}), interview_questions: cleaned };
     await pool.query(

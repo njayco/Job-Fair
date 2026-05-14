@@ -4,7 +4,7 @@ import { updateCandidateStatus } from '../../api';
 import type { EmployerCandidate } from '../../api';
 import { ChevronUp, ChevronDown, Mail, Phone, Building2, ExternalLink } from 'lucide-react';
 
-const CANDIDATE_STATUSES = ['Uploaded', 'Evaluated', 'Interviewing', 'Offer', 'Hired', 'Rejected'] as const;
+const CANDIDATE_STATUSES = ['Uploaded', 'Evaluated', 'Interviewing', 'Final Round', 'Offer Sent', 'Offer', 'Hired', 'Rejected'] as const;
 
 const RECOMMENDATION_COLORS: Record<string, string> = {
   'Strong Hire': 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
@@ -18,6 +18,8 @@ const STATUS_COLORS: Record<string, string> = {
   'Uploaded': 'bg-zinc-500/20 text-zinc-400',
   'Evaluated': 'bg-blue-500/15 text-blue-400',
   'Interviewing': 'bg-purple-500/15 text-purple-400',
+  'Final Round': 'bg-indigo-500/15 text-indigo-400',
+  'Offer Sent': 'bg-yellow-500/15 text-yellow-400',
   'Offer': 'bg-yellow-500/15 text-yellow-400',
   'Hired': 'bg-emerald-500/15 text-emerald-400',
   'Rejected': 'bg-red-500/15 text-red-400',

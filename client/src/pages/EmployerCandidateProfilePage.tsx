@@ -5,11 +5,12 @@ import Layout from '../components/Layout';
 import {
   ArrowLeft, Mail, Phone, Building2, Award, CheckCircle2,
   XCircle, Loader2, Sparkles, ChevronDown, ChevronUp, User,
+  Target, BarChart2, DollarSign, UserSearch, MessageSquare,
 } from 'lucide-react';
 import {
   getEmployerCandidate, generateInterviewQuestions, updateCandidateStatus,
 } from '../api';
-import type { EmployerCandidateFull, EmployerJob, InterviewQuestion } from '../api';
+import type { EmployerCandidateFull, EmployerJob, InterviewQuestion, SkillMatchItem } from '../api';
 import { Button } from '../components/ui/button';
 
 const SCORE_COLOR = (s: number | null) => {
@@ -34,7 +35,7 @@ const REC_COLORS: Record<string, string> = {
   'Do Not Proceed': 'bg-red-500/15 text-red-400 border-red-500/30',
 };
 
-const CANDIDATE_STATUSES = ['Uploaded', 'Evaluated', 'Interviewing', 'Offer', 'Hired', 'Rejected'];
+const CANDIDATE_STATUSES = ['Uploaded', 'Evaluated', 'Interviewing', 'Final Round', 'Offer Sent', 'Offer', 'Hired', 'Rejected'];
 
 function ScoreRing({ score }: { score: number | null }) {
   const pct = score ?? 0;
@@ -61,10 +62,21 @@ function ScoreRing({ score }: { score: number | null }) {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ icon: Icon, label, tag, children }: {
+  icon: React.ElementType;
+  label: string;
+  tag: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
-      <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--color-text-muted)]">{title}</h2>
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-mono font-bold text-[var(--color-accent)] bg-[var(--color-accent)]/10 px-2 py-0.5 rounded border border-[var(--color-accent)]/20">
+          {tag}
+        </span>
+        <Icon className="w-4 h-4 text-[var(--color-text-muted)]" />
+        <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--color-text-muted)]">{label}</h2>
+      </div>
       {children}
     </div>
   );
@@ -80,7 +92,9 @@ function QuestionItem({ q, idx }: { q: InterviewQuestion; idx: number }) {
       >
         <span className="font-mono text-xs text-[var(--color-accent)] shrink-0 mt-0.5 w-5">Q{idx + 1}</span>
         <span className="text-sm flex-1">{q.question}</span>
-        {open ? <ChevronUp className="w-4 h-4 shrink-0 text-[var(--color-text-muted)] mt-0.5" /> : <ChevronDown className="w-4 h-4 shrink-0 text-[var(--color-text-muted)] mt-0.5" />}
+        {open
+          ? <ChevronUp className="w-4 h-4 shrink-0 text-[var(--color-text-muted)] mt-0.5" />
+          : <ChevronDown className="w-4 h-4 shrink-0 text-[var(--color-text-muted)] mt-0.5" />}
       </button>
       {open && (
         <div className="px-4 pb-3 pt-0">
@@ -90,6 +104,27 @@ function QuestionItem({ q, idx }: { q: InterviewQuestion; idx: number }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SkillRow({ item }: { item: SkillMatchItem }) {
+  return (
+    <div className="flex items-start gap-3 py-2 border-b border-[var(--color-border)] last:border-0">
+      {item.met
+        ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+        : <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium">{item.requirement}</p>
+        {item.note && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{item.note}</p>}
+      </div>
+      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border shrink-0 ${
+        item.met
+          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+          : 'bg-red-500/10 text-red-400 border-red-500/20'
+      }`}>
+        {item.met ? '✓ Met' : '✗ Gap'}
+      </span>
     </div>
   );
 }
@@ -116,10 +151,7 @@ export default function EmployerCandidateProfilePage() {
     if (!jobId || !candidateId) return;
     setLoading(true);
     getEmployerCandidate(Number(jobId), Number(candidateId))
-      .then(data => {
-        setCandidate(data.candidate);
-        setJob(data.job);
-      })
+      .then(data => { setCandidate(data.candidate); setJob(data.job); })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, [jobId, candidateId]);
@@ -173,7 +205,8 @@ export default function EmployerCandidateProfilePage() {
       <Layout>
         <div className="max-w-3xl mx-auto py-16 text-center space-y-4">
           <p className="text-[var(--color-red-indicator)]">{error || 'Candidate not found.'}</p>
-          <Link to={jobId ? `/employer/jobs/${jobId}` : '/employer'} className="text-sm font-mono text-[var(--color-accent)] hover:underline">
+          <Link to={jobId ? `/employer/jobs/${jobId}` : '/employer'}
+            className="text-sm font-mono text-[var(--color-accent)] hover:underline">
             ← Back to results
           </Link>
         </div>
@@ -197,7 +230,9 @@ export default function EmployerCandidateProfilePage() {
               <span>/</span>
             </>
           )}
-          <span className="text-[var(--color-text)]">{candidate.parsed_name || candidate.filename}</span>
+          <span className="text-[var(--color-text)] truncate max-w-[200px]">
+            {candidate.parsed_name || candidate.filename}
+          </span>
         </div>
 
         {/* Header card */}
@@ -226,7 +261,6 @@ export default function EmployerCandidateProfilePage() {
                 )}
               </div>
 
-              {/* Contact */}
               <div className="flex flex-wrap gap-4 text-sm text-[var(--color-text-muted)]">
                 {candidate.parsed_email && (
                   <a href={`mailto:${candidate.parsed_email}`} className="flex items-center gap-1.5 hover:text-[var(--color-accent)] transition-colors">
@@ -248,7 +282,6 @@ export default function EmployerCandidateProfilePage() {
                 )}
               </div>
 
-              {/* Status */}
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Status:</span>
                 <select
@@ -277,17 +310,22 @@ export default function EmployerCandidateProfilePage() {
 
         {/* Executive Summary */}
         {evalJson?.summary && (
-          <Section title="Executive Summary">
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6">
+            <p className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--color-text-muted)] mb-3">Executive Summary</p>
             <p className="text-sm leading-relaxed">{evalJson.summary}</p>
-          </Section>
+          </div>
         )}
 
-        {/* Strengths & Gaps */}
-        {(evalJson?.strengths?.length || evalJson?.gaps?.length) ? (
-          <div className="grid sm:grid-cols-2 gap-4">
-            {evalJson?.strengths?.length ? (
-              <Section title="Strengths">
-                <ul className="space-y-2">
+        {/* A — Role Alignment */}
+        {evalJson?.role_alignment ? (
+          <Section icon={Target} label="Role Alignment" tag="A">
+            <p className="text-sm leading-relaxed whitespace-pre-line">{evalJson.role_alignment}</p>
+          </Section>
+        ) : evalJson && !evalJson.role_alignment ? (
+          <Section icon={Target} label="Role Alignment" tag="A">
+            <div className="space-y-2">
+              {evalJson.strengths?.length ? (
+                <ul className="space-y-1.5">
                   {evalJson.strengths.map((s, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
@@ -295,37 +333,67 @@ export default function EmployerCandidateProfilePage() {
                     </li>
                   ))}
                 </ul>
-              </Section>
-            ) : null}
-            {evalJson?.gaps?.length ? (
-              <Section title="Gaps">
-                <ul className="space-y-2">
-                  {evalJson.gaps.map((g, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm">
-                      <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                      {g}
-                    </li>
-                  ))}
-                </ul>
-              </Section>
-            ) : null}
-          </div>
+              ) : null}
+              {!evalJson.strengths?.length && <p className="text-sm text-[var(--color-text-muted)] italic">Re-evaluate this candidate to generate full role alignment analysis.</p>}
+            </div>
+          </Section>
         ) : null}
 
-        {/* Seniority & Compensation */}
-        {(evalJson?.seniority || evalJson?.comp_low || evalJson?.comp_high) ? (
-          <Section title="Seniority & Compensation">
-            <div className="grid sm:grid-cols-2 gap-6">
-              {evalJson?.seniority && (
-                <div className="space-y-1">
-                  <p className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Seniority Level</p>
-                  <p className="text-lg font-bold font-mono capitalize">{evalJson.seniority}</p>
+        {/* B — Skill Match */}
+        {evalJson?.skill_match?.length ? (
+          <Section icon={BarChart2} label="Skill Match" tag="B">
+            <div className="divide-y divide-[var(--color-border)]">
+              {evalJson.skill_match.map((item, i) => (
+                <SkillRow key={i} item={item} />
+              ))}
+            </div>
+          </Section>
+        ) : evalJson?.gaps?.length ? (
+          <Section icon={BarChart2} label="Skill Match" tag="B">
+            <div className="space-y-2">
+              {evalJson.strengths?.map((s, i) => (
+                <div key={i} className="flex items-start gap-2 text-sm">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  {s}
+                </div>
+              ))}
+              {evalJson.gaps?.map((g, i) => (
+                <div key={i} className="flex items-start gap-2 text-sm">
+                  <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  {g}
+                </div>
+              ))}
+            </div>
+          </Section>
+        ) : null}
+
+        {/* C — Seniority Evaluation */}
+        {(evalJson?.seniority || evalJson?.seniority_rationale) ? (
+          <Section icon={UserSearch} label="Seniority Evaluation" tag="C">
+            <div className="space-y-2">
+              {evalJson.seniority && (
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-bold font-mono capitalize">{evalJson.seniority}</span>
+                  <span className="text-xs font-mono px-2 py-0.5 rounded bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/20 capitalize">
+                    {evalJson.seniority} level
+                  </span>
                 </div>
               )}
-              {(evalJson?.comp_low || evalJson?.comp_high) && (
-                <div className="space-y-1">
-                  <p className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Estimated Compensation</p>
-                  <p className="text-lg font-bold font-mono">
+              {evalJson.seniority_rationale && (
+                <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">{evalJson.seniority_rationale}</p>
+              )}
+            </div>
+          </Section>
+        ) : null}
+
+        {/* D — Compensation Intelligence */}
+        {(evalJson?.comp_low || evalJson?.comp_high || evalJson?.comp_context) ? (
+          <Section icon={DollarSign} label="Compensation Intelligence" tag="D">
+            <div className="space-y-3">
+              {(evalJson.comp_low || evalJson.comp_high) && (
+                <div>
+                  <p className="text-xs font-mono text-[var(--color-text-muted)] uppercase mb-1">Estimated Range</p>
+                  <p className="text-2xl font-bold font-mono">
                     {evalJson.comp_low ? `$${(evalJson.comp_low / 1000).toFixed(0)}k` : '—'}
                     {evalJson.comp_low && evalJson.comp_high ? ' – ' : ''}
                     {evalJson.comp_high ? `$${(evalJson.comp_high / 1000).toFixed(0)}k` : ''}
@@ -333,36 +401,85 @@ export default function EmployerCandidateProfilePage() {
                   </p>
                 </div>
               )}
+              {evalJson.comp_context && (
+                <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">{evalJson.comp_context}</p>
+              )}
+            </div>
+          </Section>
+        ) : null}
+
+        {/* E — Resume & Profile Analysis */}
+        {evalJson?.profile_analysis ? (
+          <Section icon={Award} label="Resume & Profile Analysis" tag="E">
+            <p className="text-sm leading-relaxed">{evalJson.profile_analysis}</p>
+          </Section>
+        ) : null}
+
+        {/* F — Interview Strategy */}
+        {(evalJson?.interview_strategy?.focus_areas?.length || evalJson?.interview_strategy?.red_flags?.length) ? (
+          <Section icon={MessageSquare} label="Interview Strategy" tag="F">
+            <div className="grid sm:grid-cols-2 gap-6">
+              {evalJson.interview_strategy?.focus_areas?.length ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Focus Areas</p>
+                  <ul className="space-y-2">
+                    {evalJson.interview_strategy.focus_areas.map((f, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <span className="font-mono text-[var(--color-accent)] text-xs mt-0.5 shrink-0">→</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {evalJson.interview_strategy?.red_flags?.length ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Red Flags to Probe</p>
+                  <ul className="space-y-2">
+                    {evalJson.interview_strategy.red_flags.map((f, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <span className="font-mono text-[var(--color-red-indicator)] text-xs mt-0.5 shrink-0">⚑</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
           </Section>
         ) : null}
 
         {/* Interview Questions */}
-        <Section title="Interview Questions">
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-bold text-[var(--color-accent)] bg-[var(--color-accent)]/10 px-2 py-0.5 rounded border border-[var(--color-accent)]/20">IQ</span>
+              <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--color-text-muted)]">Interview Questions</h2>
+            </div>
+            {questions?.length ? (
+              <button
+                onClick={handleGenerateQuestions}
+                disabled={generatingQs}
+                className="text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors flex items-center gap-1"
+              >
+                {generatingQs ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                Regenerate
+              </button>
+            ) : null}
+          </div>
+
           {questions?.length ? (
             <div className="space-y-2">
               {questions.map((q, i) => (
                 <QuestionItem key={i} q={q} idx={i} />
               ))}
-              <div className="pt-2">
-                <button
-                  onClick={handleGenerateQuestions}
-                  disabled={generatingQs}
-                  className="text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors flex items-center gap-1"
-                >
-                  {generatingQs ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                  Regenerate questions
-                </button>
-              </div>
             </div>
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-[var(--color-text-muted)]">
-                Generate 10 personalised interview questions tailored to this candidate's background and identified gaps.
+                Generate 10 personalised interview questions tailored to this candidate's background and gaps.
               </p>
-              {qError && (
-                <p className="text-sm text-[var(--color-red-indicator)]">{qError}</p>
-              )}
+              {qError && <p className="text-sm text-[var(--color-red-indicator)]">{qError}</p>}
               <Button
                 variant="primary"
                 onClick={handleGenerateQuestions}
@@ -375,7 +492,7 @@ export default function EmployerCandidateProfilePage() {
               </Button>
             </div>
           )}
-        </Section>
+        </div>
 
       </div>
     </Layout>
