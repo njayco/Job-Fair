@@ -63,7 +63,7 @@ function isPrivateIp(ip) {
   return false;
 }
 
-async function validateAndResolveUrl(rawUrl) {
+export async function validateAndResolveUrl(rawUrl) {
   let parsed;
   try {
     parsed = new URL(rawUrl);

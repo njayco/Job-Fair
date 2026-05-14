@@ -2,6 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { inspectForm } from '../lib/formInspector.js';
 import { draftApplicationAnswers } from '../lib/applyDrafter.js';
+import { validateAndResolveUrl } from '../lib/evaluation.js';
 
 const router = Router();
 
@@ -32,6 +33,16 @@ router.post('/prepare', async (req, res) => {
       return res.status(400).json({
         error: 'This application has no URL. Add a job URL first.',
         error_type: 'NO_URL',
+      });
+    }
+
+    // SSRF protection: validate the stored URL resolves to a public, non-private IP
+    try {
+      await validateAndResolveUrl(app.url);
+    } catch (err) {
+      return res.status(400).json({
+        error: err.message,
+        error_type: 'INVALID_URL',
       });
     }
 
