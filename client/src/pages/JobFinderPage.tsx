@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import {
-  findJobs, getJobFinderHistory, getJobFinderRun, getCv, getSavedJobs, saveJob, deleteSavedJob,
+  findJobs, getJobFinderHistory, getJobFinderRun, getCv, getSavedJobs, saveJob, deleteSavedJob, getApplications,
 } from '../api';
 import type { JobFinderRun, JobFinderResult, JobFinderHistoryItem, JobFinderPreferences } from '../api';
 import {
   Search, AlertCircle, Clock, FileText, ExternalLink,
   CheckCircle, XCircle, TrendingUp, ChevronRight, RotateCcw, Bookmark, BookmarkCheck,
+  Send, X,
 } from 'lucide-react';
 
 function MatchBadge({ pct }: { pct: number }) {
@@ -40,12 +41,18 @@ function JobCard({
   savedJobId,
   onSave,
   onUnsave,
+  showApplyPrompt,
+  applyAppId,
+  onDismissPrompt,
 }: {
   job: JobFinderResult;
   onEvaluate: (job: JobFinderResult) => void;
   savedJobId?: number;
   onSave: (job: JobFinderResult) => void;
   onUnsave: (savedId: number) => void;
+  showApplyPrompt?: boolean;
+  applyAppId?: number | null;
+  onDismissPrompt?: () => void;
 }) {
   const isSaved = savedJobId !== undefined;
 
@@ -143,6 +150,45 @@ function JobCard({
           </Button>
         </div>
       </div>
+
+      {showApplyPrompt && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/20 rounded-lg">
+          <div className="flex items-center gap-2 text-sm text-[var(--color-text)]">
+            <Send className="w-3.5 h-3.5 text-[var(--color-accent)] shrink-0" />
+            {applyAppId != null
+              ? <span>Job saved! Ready to <span className="font-mono font-medium text-[var(--color-accent)]">Assisted Apply</span> — you already have an evaluation for this role.</span>
+              : <span>Job saved! Evaluate it first to unlock <span className="font-mono font-medium text-[var(--color-accent)]">Assisted Apply</span>.</span>
+            }
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {applyAppId != null ? (
+              <Link
+                to={`/apply/${applyAppId}`}
+                className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity"
+                onClick={onDismissPrompt}
+              >
+                <Send className="w-3 h-3" />
+                Assisted Apply
+              </Link>
+            ) : (
+              <button
+                onClick={() => { onEvaluate(job); onDismissPrompt?.(); }}
+                className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity"
+              >
+                <Send className="w-3 h-3" />
+                Evaluate &amp; Apply
+              </button>
+            )}
+            <button
+              onClick={onDismissPrompt}
+              aria-label="Dismiss"
+              className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -166,6 +212,8 @@ export default function JobFinderPage() {
   const [cvText, setCvText] = useState('');
   // savedMap: key = "role|||company|||url", value = saved_job id
   const [savedMap, setSavedMap] = useState<Map<string, number>>(new Map());
+  // prompt shown after saving a job: the job key + resolved application ID (if one exists already)
+  const [applyPrompt, setApplyPrompt] = useState<{ key: string; appId: number | null } | null>(null);
 
   const [prefs, setPrefs] = useState<JobFinderPreferences>({
     location: '',
@@ -261,6 +309,27 @@ export default function JobFinderPage() {
         match_pct: job.match_pct,
       });
       setSavedMap(prev => new Map(prev).set(jobKey(job), saved.id));
+
+      // Check if the user has already evaluated this job (an application with this URL exists).
+      // Normalize URLs (strip trailing slash + query string) for reliable matching.
+      const normalizeUrl = (u: string) => u.replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase();
+      const jobUrlNorm = normalizeUrl(job.url);
+
+      let resolvedAppId: number | null = null;
+      try {
+        // Fetch up to 500 applications to minimize false-negatives for large pipelines
+        const appsRes = await getApplications({ limit: 500 });
+        const match = appsRes.applications.find(
+          a => a.url &&
+               normalizeUrl(a.url) === jobUrlNorm &&
+               (a.status === 'Evaluated' || a.status === 'Applied')
+        );
+        resolvedAppId = match?.id ?? null;
+      } catch {
+        // Non-fatal — fall back to evaluate-first prompt
+      }
+
+      setApplyPrompt({ key: jobKey(job), appId: resolvedAppId });
     } catch (e) {
       console.error('Failed to save job:', e);
     }
@@ -512,6 +581,9 @@ export default function JobFinderPage() {
                     savedJobId={savedId}
                     onSave={handleSave}
                     onUnsave={(sid) => handleUnsave(sid, job)}
+                    showApplyPrompt={applyPrompt?.key === key}
+                    applyAppId={applyPrompt?.key === key ? applyPrompt.appId : null}
+                    onDismissPrompt={() => setApplyPrompt(null)}
                   />
                 );
               })}

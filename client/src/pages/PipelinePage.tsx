@@ -232,7 +232,7 @@ export default function PipelinePage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-2">
-                        {app.url && (
+                        {app.url && (app.status === 'Evaluated' || app.status === 'Applied') && (
                           <Link
                             to={`/apply/${app.id}`}
                             className="inline-flex items-center gap-1 text-xs font-mono text-[var(--color-accent)] hover:text-[var(--color-primary)] transition-colors"
