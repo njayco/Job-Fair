@@ -893,7 +893,7 @@ export interface ApplyPrepareResponse {
   company: string;
   role: string;
   fields: FormField[];
-  detection_type: 'detected' | 'fallback';
+  detection_type: 'detected' | 'fallback' | 'jina';
   detection_error:
     | 'AUTH_WALL' | 'TIMEOUT' | 'FETCH_ERROR' | 'JS_REQUIRED' | 'NO_FORM'
     | 'NOT_FOUND' | 'RATE_LIMITED' | 'SERVER_ERROR'

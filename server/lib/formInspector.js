@@ -1,7 +1,8 @@
 /**
  * formInspector.js
  * Fetches a job application URL and attempts to detect form fields from the HTML.
- * Falls back to common ATS fields when the page is JS-rendered or inaccessible.
+ * Falls back to Jina Reader (r.jina.ai) for JS-rendered ATS portals, then to
+ * common ATS fields when the page is inaccessible or yields no form structure.
  *
  * Security: uses safeFetch() which validates every redirect hop via validateAndResolveUrl
  * to prevent SSRF attacks, and enforces content-type + response-size limits.
@@ -36,6 +37,11 @@ const COMMON_ATS_FIELDS = [
   { label: 'Work Authorization', name: 'work_authorization', type: 'select', required: false, selector: '', placeholder: '' },
   { label: 'Salary Expectation', name: 'salary_expectation', type: 'text', required: false, selector: '', placeholder: '' },
 ];
+
+// Normalised label set from the common fields, used for deduplication.
+const COMMON_LABEL_NORMS = new Set(
+  COMMON_ATS_FIELDS.map(f => f.label.toLowerCase().replace(/[^a-z0-9]/g, ''))
+);
 
 // Strip HTML tags and normalise whitespace
 function stripTags(html) {
@@ -161,6 +167,138 @@ function parseFormFields(html) {
   return fields;
 }
 
+// ── Jina Reader integration ────────────────────────────────────────────────────
+
+/**
+ * Fetch a rendered text snapshot of a URL via Jina Reader (r.jina.ai).
+ * Returns the plain-text/markdown body, or null on failure.
+ */
+async function fetchJinaSnapshot(url) {
+  try {
+    // Encode the URL so special characters in the path/query don't break the Jina endpoint
+    const jinaUrl = `https://r.jina.ai/${encodeURIComponent(url)}`;
+    const res = await fetch(jinaUrl, {
+      headers: {
+        'Accept': 'text/plain, text/markdown',
+        'X-Timeout': '15',
+      },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Infer the most likely field type from a label string.
+ */
+function inferFieldType(label) {
+  const l = label.toLowerCase();
+  if (/\b(email|e-mail)\b/.test(l)) return 'email';
+  if (/\b(phone|tel|mobile|cell)\b/.test(l)) return 'tel';
+  if (/\b(url|website|portfolio|linkedin|github|profile link)\b/.test(l)) return 'url';
+  if (/\b(resume|cv|upload|attach|file)\b/.test(l)) return 'file';
+  if (/\b(cover letter|cover note|motivation|essay|statement|describe|explain|tell us|summary|experience|why|how|what|background)\b/.test(l)) return 'textarea';
+  if (/\b(country|state|pronoun|gender|veteran|disability|ethnicity|race|citizenship|authorization|visa|relocat|department|team|source|referral|salary|compensation)\b/.test(l)) return 'select';
+  return 'text';
+}
+
+/**
+ * Words/phrases that indicate a line is navigation, boilerplate, or a heading
+ * rather than a form field label.
+ */
+const NOISE_PATTERNS = [
+  /^(apply|submit|save|cancel|next|back|continue|sign in|log in|create account|privacy|terms|cookie)/i,
+  /^(jobs?|careers?|home|about|contact|menu|navigation|search results)/i,
+  /^\d+$/, // pure numbers
+  /^[^a-z]+$/i, // no letters at all
+];
+
+/**
+ * Parse candidate form field labels from a Jina-rendered text snapshot.
+ * Returns an array of { label, name, type, required, selector, placeholder }
+ * objects for fields that appear custom / not already in COMMON_ATS_FIELDS.
+ */
+function parseJinaFields(snapshot) {
+  const lines = snapshot
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  const candidateLabels = [];
+  const seen = new Set();
+
+  for (const raw of lines) {
+    // Strip markdown formatting: ##, **, *, >, -, bullets, leading numbers like "1."
+    let line = raw
+      .replace(/^#+\s*/, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/^[-•▸▶]\s+/, '')
+      .replace(/^\d+\.\s+/, '')
+      .replace(/^>\s+/, '')
+      .trim();
+
+    // Detect and strip trailing required asterisk/marker
+    const required = /\s*\*\s*$/.test(line) || /\(required\)/i.test(line);
+    line = line.replace(/\s*\*\s*$/, '').replace(/\s*\(required\)\s*$/i, '').trim();
+
+    // Skip blank, very long (paragraph), or very short (single char) lines
+    if (!line || line.length < 3 || line.length > 80) continue;
+
+    // Skip lines with too many words (likely a sentence/paragraph, not a label)
+    const wordCount = line.split(/\s+/).length;
+    if (wordCount > 8) continue;
+
+    // Skip noise patterns (navigation, boilerplate)
+    if (NOISE_PATTERNS.some(p => p.test(line))) continue;
+
+    // Skip lines that look like URLs or email addresses
+    if (/^https?:\/\//.test(line) || /^[^\s]+@[^\s]+\.[^\s]+$/.test(line)) continue;
+
+    // Normalise for deduplication / comparison with common fields
+    const norm = line.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!norm || seen.has(norm)) continue;
+    seen.add(norm);
+
+    // Skip if this is essentially a common ATS field (already covered)
+    if (COMMON_LABEL_NORMS.has(norm)) continue;
+
+    // Require at least one letter
+    if (!/[a-zA-Z]/.test(line)) continue;
+
+    const type = inferFieldType(line);
+    const nameSlug = line.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+    candidateLabels.push({
+      label: line,
+      name: nameSlug,
+      type,
+      required,
+      selector: '',
+      placeholder: type === 'file' ? 'Upload your file manually on the application page' : '',
+    });
+  }
+
+  return candidateLabels;
+}
+
+/**
+ * Determine whether Jina-extracted fields contain meaningful custom fields
+ * (i.e., fields not already in the common ATS list).
+ */
+function hasCustomFields(jinaFields) {
+  return jinaFields.some(f => {
+    const norm = f.label.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return !COMMON_LABEL_NORMS.has(norm);
+  });
+}
+
+// ── SSRF-safe fetcher ─────────────────────────────────────────────────────────
+
 /**
  * Fetch a URL with manual redirect following + SSRF validation on every hop.
  * Also enforces content-type (HTML only) and response-size limits.
@@ -243,6 +381,24 @@ async function safeFetch(url, maxRedirects = 5) {
   }
 }
 
+// ── Main inspector ────────────────────────────────────────────────────────────
+
+/**
+ * Inspect a job application URL for form fields.
+ *
+ * Detection chain:
+ *   1. Static HTML fetch + regex parse
+ *   2. Jina Reader rendered-snapshot parse (JS-rendered portals)
+ *   3. Common ATS field fallback
+ *
+ * SECURITY NOTE: Callers MUST validate `url` against private/reserved IP ranges
+ * (e.g. via `validateAndResolveUrl`) before calling this function to prevent
+ * SSRF. The current call site in `server/routes/apply.js` enforces this; any
+ * future call sites must do the same.
+ *
+ * @param {string} url - The job application URL (already SSRF-validated by caller).
+ * @returns {{ fields: object[], detectionType: string, error: string|null }}
+ */
 export async function inspectForm(url) {
   let html = '';
   let fetchError = null;
@@ -255,16 +411,16 @@ export async function inspectForm(url) {
     if (!res.ok) {
       const status = res.status;
       if (status === 401 || status === 403) {
-        return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'AUTH_WALL' };
+        return tryJinaFallback(url, 'AUTH_WALL');
       }
       if (status === 404) {
         return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'NOT_FOUND' };
       }
       if (status === 429) {
-        return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'RATE_LIMITED' };
+        return tryJinaFallback(url, 'RATE_LIMITED');
       }
       if (status >= 500) {
-        return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'SERVER_ERROR' };
+        return tryJinaFallback(url, 'SERVER_ERROR');
       }
       fetchError = `HTTP_${status}`;
       fetchErrorCode = `HTTP_${status}`;
@@ -285,7 +441,7 @@ export async function inspectForm(url) {
     }
 
     if (msg.includes('timeout') || msg.includes('aborted')) {
-      return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'TIMEOUT' };
+      return tryJinaFallback(url, 'TIMEOUT');
     }
     if (code === 'TOO_LARGE' || msg.includes('TOO_LARGE')) {
       return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'RESPONSE_TOO_LARGE' };
@@ -299,7 +455,7 @@ export async function inspectForm(url) {
   }
 
   if (fetchError) {
-    return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: fetchErrorCode };
+    return tryJinaFallback(url, fetchErrorCode);
   }
 
   // Detect JS-rendered forms that won't have fields in the static HTML
@@ -309,11 +465,9 @@ export async function inspectForm(url) {
   const hasInputs = /<input/i.test(html);
 
   if (!hasFormTag && !hasInputs) {
-    return {
-      fields: COMMON_ATS_FIELDS,
-      detectionType: 'fallback',
-      error: hasReactRoot ? 'JS_REQUIRED' : 'NO_FORM',
-    };
+    // JS-rendered or no form — try Jina before falling back
+    const jsError = hasReactRoot ? 'JS_REQUIRED' : 'NO_FORM';
+    return tryJinaFallback(url, jsError);
   }
 
   const detectedFields = parseFormFields(html);
@@ -323,16 +477,67 @@ export async function inspectForm(url) {
   const uploadFields = detectedFields.filter(f => f.type === 'file' && (f.label || f.name));
 
   if (fillableFields.length < 2) {
-    // Not enough detected fields — fall back and append any detected upload fields
-    const base = [...COMMON_ATS_FIELDS];
-    for (const uf of uploadFields) {
-      if (!base.some(b => b.type === 'file')) base.splice(7, 0, uf);
-    }
-    return { fields: base, detectionType: 'fallback', error: null };
+    // Not enough detected fields — try Jina before falling back to common list
+    return tryJinaFallback(url, null, uploadFields);
   }
 
   // Return detected fillable fields + any detected upload fields at the front
   detectionType = 'detected';
   const allFields = [...uploadFields, ...fillableFields];
   return { fields: allFields, detectionType, error: null };
+}
+
+/**
+ * Attempt to enrich field detection via Jina Reader.
+ * If Jina finds custom fields, returns detectionType 'jina'.
+ * Otherwise falls back to COMMON_ATS_FIELDS with detectionType 'fallback'.
+ *
+ * @param {string} url - The original job application URL.
+ * @param {string|null} originalError - The error code that triggered this fallback.
+ * @param {Array} staticUploadFields - Any file-upload fields found in static HTML.
+ */
+async function tryJinaFallback(url, originalError, staticUploadFields = []) {
+  try {
+    const snapshot = await fetchJinaSnapshot(url);
+
+    if (snapshot) {
+      const jinaFields = parseJinaFields(snapshot);
+
+      if (jinaFields.length > 0 && hasCustomFields(jinaFields)) {
+        // Jina found custom fields — merge them on top of the common base
+        // Preserve any static upload fields found earlier; deduplicate by name
+        const base = [...COMMON_ATS_FIELDS];
+
+        // Inject static upload fields not already in base
+        for (const uf of staticUploadFields) {
+          if (!base.some(b => b.type === 'file')) base.splice(7, 0, uf);
+        }
+
+        // Append Jina-detected custom fields that don't duplicate the base
+        const baseNames = new Set(base.map(f => f.name));
+        for (const jf of jinaFields) {
+          if (!baseNames.has(jf.name)) {
+            base.push(jf);
+            baseNames.add(jf.name);
+          }
+        }
+
+        return {
+          fields: base,
+          detectionType: 'jina',
+          error: originalError || null,
+          jina_field_count: jinaFields.length,
+        };
+      }
+    }
+  } catch {
+    // Jina unavailable or errored — silently fall through
+  }
+
+  // Final fallback: common ATS fields
+  const base = [...COMMON_ATS_FIELDS];
+  for (const uf of staticUploadFields) {
+    if (!base.some(b => b.type === 'file')) base.splice(7, 0, uf);
+  }
+  return { fields: base, detectionType: 'fallback', error: originalError || null };
 }

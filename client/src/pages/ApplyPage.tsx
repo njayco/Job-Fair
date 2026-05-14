@@ -714,7 +714,7 @@ export default function ApplyPage() {
                 <div>
                   <p className="text-sm font-medium text-[var(--color-yellow-indicator)]">
                     {draft.detection_error === 'AUTH_WALL'         ? 'Login required — could not read form' :
-                     draft.detection_error === 'JS_REQUIRED'       ? 'JavaScript-rendered form (could not parse statically)' :
+                     draft.detection_error === 'JS_REQUIRED'       ? 'JavaScript-rendered form — could not parse statically or via Jina' :
                      draft.detection_error === 'TIMEOUT'           ? 'Form page timed out' :
                      draft.detection_error === 'NOT_FOUND'         ? 'Form page returned 404 — check the URL' :
                      draft.detection_error === 'RATE_LIMITED'      ? 'Rate limited by the application portal' :
@@ -732,6 +732,23 @@ export default function ApplyPage() {
                 </div>
               </div>
             )}
+
+            {draft.detection_type === 'jina' && (
+              <div className="p-4 bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/20 rounded-xl flex items-start gap-3">
+                <Info className="w-4 h-4 text-[var(--color-primary)] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-[var(--color-primary)]">
+                    Fields detected via rendered page snapshot
+                  </p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                    The portal uses JavaScript rendering, so we used a text snapshot to find custom fields on top of the standard ATS set.
+                    {' '}<a href={draft.url} target="_blank" rel="noopener noreferrer" className="text-[var(--color-primary)] underline hover:no-underline">Open the form</a>
+                    {' '}to confirm all fields are covered.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {draft.detection_type === 'detected' && (
               <div className="p-4 bg-[var(--color-green-indicator)]/5 border border-[var(--color-green-indicator)]/30 rounded-xl flex items-start gap-3">
                 <CheckCircle className="w-4 h-4 text-[var(--color-green-indicator)] shrink-0 mt-0.5" />
