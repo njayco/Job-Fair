@@ -43,6 +43,7 @@ async function exaSearch(query, numResults = 5) {
       includeDomains: JOB_DOMAINS,
       startPublishedDate: thirtyDaysAgo,
       type: 'neural',
+      category: 'job posting',
     }),
     signal: AbortSignal.timeout(20000),
   });
@@ -50,6 +51,31 @@ async function exaSearch(query, numResults = 5) {
   if (!res.ok) {
     const err = await res.text().catch(() => res.statusText);
     console.error(`Exa search failed (${res.status}): ${err}`);
+    return { results: [] };
+  }
+  return res.json();
+}
+
+// Broad fallback search — no domain filter, used when the domain-filtered search returns 0 results
+async function exaSearchBroad(query, numResults = 5) {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const res = await fetch(`${EXA_BASE}/search`, {
+    method: 'POST',
+    headers: exaHeaders(),
+    body: JSON.stringify({
+      query,
+      numResults,
+      startPublishedDate: thirtyDaysAgo,
+      type: 'neural',
+      category: 'job posting',
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.statusText);
+    console.error(`Exa broad search failed (${res.status}): ${err}`);
     return { results: [] };
   }
   return res.json();
@@ -78,14 +104,64 @@ async function exaContents(urls, maxCharacters = 4000) {
   return Array.isArray(data.results) ? data.results : [];
 }
 
-function buildSearchQueries(topRoles, preferences) {
+// Extract top N skills from CV text by matching against a curated keyword list.
+// Short/ambiguous tokens (R, Go, C#, etc.) use word-boundary regex to avoid false positives.
+function extractTopSkills(cvContent, topN = 3) {
+  const skillKeywords = [
+    'JavaScript', 'TypeScript', 'Python', 'Golang', 'Java', 'Rust', 'Ruby', 'PHP',
+    'Swift', 'Kotlin', 'Scala', 'MATLAB',
+    // Short tokens — must be matched as whole words
+    { term: 'Go', pattern: /\bgo\b/ },
+    { term: 'R', pattern: /\br\b/ },
+    { term: 'C#', pattern: /\bc#/i },
+    { term: 'C++', pattern: /\bc\+\+/i },
+    { term: '.NET', pattern: /\.net\b/i },
+    'React', 'Vue', 'Angular', 'Node.js', 'Next.js', 'Django', 'FastAPI', 'Spring', 'Rails',
+    'Laravel', 'Flask', 'Svelte', 'Express',
+    'AWS', 'GCP', 'Azure', 'Kubernetes', 'Docker', 'Terraform', 'CI/CD', 'DevOps',
+    'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch', 'Kafka', 'Spark',
+    'TensorFlow', 'PyTorch', 'machine learning', 'deep learning', 'LLM', 'NLP',
+    'GraphQL', 'REST', 'microservices', 'SQL', 'data analysis', 'product management',
+    'Agile', 'Scrum', 'Figma', 'iOS', 'Android',
+  ];
+  const cvLower = cvContent.toLowerCase();
+  const matched = [];
+  for (const entry of skillKeywords) {
+    if (matched.length >= topN) break;
+    if (typeof entry === 'string') {
+      if (cvLower.includes(entry.toLowerCase())) matched.push(entry);
+    } else {
+      if (entry.pattern.test(cvLower)) matched.push(entry.term);
+    }
+  }
+  return matched;
+}
+
+// Infer seniority level from CV text
+function extractSeniority(cvContent) {
+  const cvLower = cvContent.toLowerCase();
+  if (/\b(vp|vice president|director|chief|cto|ceo|coo)\b/.test(cvLower)) return 'executive';
+  if (/\b(principal|staff engineer|distinguished)\b/.test(cvLower)) return 'principal';
+  if (/\b(senior|sr\.?\s|lead)\b/.test(cvLower)) return 'senior';
+  if (/\b(junior|jr\.?\s|entry.?level|graduate)\b/.test(cvLower)) return 'junior';
+  return '';
+}
+
+function buildSearchQueries(topRoles, preferences, cvContent = '') {
   const location = preferences.location?.trim();
   const workStyle = preferences.work_style;
   const focusArea = preferences.focus_area?.trim();
   const styleTag = workStyle === 'remote' ? 'remote' : workStyle === 'hybrid' ? 'hybrid' : '';
 
+  const topSkills = extractTopSkills(cvContent);
+  const seniority = extractSeniority(cvContent);
+
   return topRoles.slice(0, 3).map(role => {
-    let q = `${role} job opening hiring 2024 2025`;
+    const roleLower = role.toLowerCase();
+    const seniorityPrefix = seniority && !roleLower.includes(seniority) ? `${seniority} ` : '';
+    const currentYear = new Date().getFullYear();
+    let q = `${seniorityPrefix}${role} job opening hiring ${currentYear}`;
+    if (topSkills.length) q += ` ${topSkills.join(' ')}`;
     if (styleTag) q += ` ${styleTag}`;
     if (location && workStyle !== 'remote') q += ` ${location}`;
     if (focusArea) q += ` ${focusArea}`;
@@ -221,25 +297,37 @@ router.post('/', async (req, res) => {
     }
 
     // STEP 1 — Exa search: get URLs and titles (no heavy content yet)
-    const queries = buildSearchQueries(topRoles, preferences);
+    const queries = buildSearchQueries(topRoles, preferences, cvContent);
     console.log('Job Finder: Exa search queries:', queries);
 
     const searchResults = await Promise.allSettled(queries.map(q => exaSearch(q, 5)));
 
-    const seen = new Set();
-    const searchItems = [];
-    for (const r of searchResults) {
-      if (r.status === 'fulfilled' && Array.isArray(r.value?.results)) {
-        for (const item of r.value.results) {
-          if (item.url && !seen.has(item.url)) {
-            seen.add(item.url);
-            searchItems.push(item);
+    const collectResults = (settled) => {
+      const seen = new Set();
+      const items = [];
+      for (const r of settled) {
+        if (r.status === 'fulfilled' && Array.isArray(r.value?.results)) {
+          for (const item of r.value.results) {
+            if (item.url && !seen.has(item.url)) {
+              seen.add(item.url);
+              items.push(item);
+            }
           }
         }
       }
-    }
+      return items;
+    };
 
-    console.log(`Job Finder: ${searchItems.length} unique URLs from Exa search`);
+    let searchItems = collectResults(searchResults);
+    console.log(`Job Finder: ${searchItems.length} unique URLs from domain-filtered Exa search`);
+
+    // Fallback: if domain-filtered search returned nothing, retry without domain restrictions
+    if (!searchItems.length) {
+      console.log('Job Finder: 0 results with domain filter — retrying with broad search (no domain filter)');
+      const broadResults = await Promise.allSettled(queries.map(q => exaSearchBroad(q, 5)));
+      searchItems = collectResults(broadResults);
+      console.log(`Job Finder: ${searchItems.length} unique URLs from broad Exa search`);
+    }
 
     if (!searchItems.length) {
       return res.status(400).json({
