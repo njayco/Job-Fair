@@ -1,14 +1,15 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { inspectForm } from '../lib/formInspector.js';
-import { draftApplicationAnswers } from '../lib/applyDrafter.js';
+import { draftApplicationAnswers, tailorResume, generateCoverLetter } from '../lib/applyDrafter.js';
 import { validateAndResolveUrl } from '../lib/evaluation.js';
 
 const router = Router();
 
 // POST /api/apply/prepare
 // Body: { application_id }
-// Returns: { attempt_id, url, company, role, fields, detection_type, detection_error }
+// Returns: { attempt_id, url, company, role, fields, detection_type, detection_error,
+//            tailored_resume, cover_letter }
 router.post('/prepare', async (req, res) => {
   const { application_id } = req.body;
   const userId = req.user.id;
@@ -60,52 +61,80 @@ router.post('/prepare', async (req, res) => {
       });
     }
 
-    // Inspect the form
+    const { company, role, url, evaluation_json: evaluationJson } = app;
+    const docContext = { cvContent, evaluationJson, company, role, jobUrl: url };
+
+    // ── Phase 1: run form inspection + resume tailoring + cover letter in parallel ──
+    // Field drafting depends on inspection result, so inspection is on the critical path.
+    // Resume tailoring and cover letter are independent — start them immediately.
+    const [inspectSettled, tailoredResumeSettled, coverLetterSettled] = await Promise.allSettled([
+      inspectForm(url),
+      tailorResume(docContext),
+      generateCoverLetter(docContext),
+    ]);
+
+    // Unpack inspection
     let inspectResult;
-    try {
-      inspectResult = await inspectForm(app.url);
-    } catch (err) {
-      console.warn('[apply/prepare] Form inspection failed:', err.message);
+    if (inspectSettled.status === 'fulfilled') {
+      inspectResult = inspectSettled.value;
+    } else {
+      console.warn('[apply/prepare] Form inspection failed:', inspectSettled.reason?.message);
       inspectResult = { fields: [], detectionType: 'fallback', error: 'FETCH_ERROR' };
     }
-
     const { fields, detectionType, error: detectionError } = inspectResult;
 
-    // Draft answers with Claude
+    // Unpack documents (non-fatal if they fail)
+    const tailoredResumeText = tailoredResumeSettled.status === 'fulfilled'
+      ? tailoredResumeSettled.value
+      : '';
+    const coverLetterText = coverLetterSettled.status === 'fulfilled'
+      ? coverLetterSettled.value
+      : '';
+
+    if (tailoredResumeSettled.status === 'rejected') {
+      console.warn('[apply/prepare] Resume tailoring failed:', tailoredResumeSettled.reason?.message);
+    }
+    if (coverLetterSettled.status === 'rejected') {
+      console.warn('[apply/prepare] Cover letter failed:', coverLetterSettled.reason?.message);
+    }
+
+    // ── Phase 2: draft field answers (depends on inspection result) ──
     let draftedFields;
     try {
       draftedFields = await draftApplicationAnswers({
         fields,
         cvContent,
-        evaluationJson: app.evaluation_json,
-        company: app.company,
-        role: app.role,
-        jobUrl: app.url,
+        evaluationJson,
+        company,
+        role,
+        jobUrl: url,
       });
     } catch (err) {
-      console.error('[apply/prepare] Claude drafting failed:', err.message);
-      // Return fields without proposed values rather than failing entirely
+      console.error('[apply/prepare] Claude field drafting failed:', err.message);
       draftedFields = fields.map(f => ({ ...f, proposed_value: '', approved_value: '' }));
     }
 
-    // Persist the attempt
+    // Persist the attempt (with documents)
     const { rows: attemptRows } = await pool.query(
-      `INSERT INTO apply_attempts (user_id, application_id, url, fields_json, status)
-       VALUES ($1, $2, $3, $4, 'drafted')
+      `INSERT INTO apply_attempts
+         (user_id, application_id, url, fields_json, tailored_resume, cover_letter, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'drafted')
        RETURNING id, created_at`,
-      [userId, application_id, app.url, JSON.stringify(draftedFields)]
+      [userId, application_id, url, JSON.stringify(draftedFields), tailoredResumeText || null, coverLetterText || null]
     );
     const attempt = attemptRows[0];
 
     res.json({
       attempt_id: attempt.id,
       application_id,
-      url: app.url,
-      company: app.company,
-      role: app.role,
+      url,
+      company,
+      role,
       fields: draftedFields,
       detection_type: detectionType,
       detection_error: detectionError,
+      tailored_resume: tailoredResumeText,
+      cover_letter: coverLetterText,
       created_at: attempt.created_at,
     });
   } catch (err) {
@@ -115,10 +144,10 @@ router.post('/prepare', async (req, res) => {
 });
 
 // POST /api/apply/fill
-// Body: { attempt_id, fields: [{ label, name, type, selector, proposed_value, approved_value }] }
-// Saves approved field values and marks attempt as filled
+// Body: { attempt_id, fields, tailored_resume?, cover_letter? }
+// Saves approved field values + user-edited documents; marks attempt as filled
 router.post('/fill', async (req, res) => {
-  const { attempt_id, fields } = req.body;
+  const { attempt_id, fields, tailored_resume, cover_letter } = req.body;
   const userId = req.user.id;
 
   if (!attempt_id) {
@@ -126,7 +155,6 @@ router.post('/fill', async (req, res) => {
   }
 
   try {
-    // Verify ownership
     const { rows } = await pool.query(
       'SELECT id, url, application_id FROM apply_attempts WHERE id = $1 AND user_id = $2',
       [attempt_id, userId]
@@ -136,12 +164,15 @@ router.post('/fill', async (req, res) => {
     }
     const attempt = rows[0];
 
-    // Save approved values and mark as filled
     await pool.query(
       `UPDATE apply_attempts
-       SET fields_json = $1, status = 'filled', updated_at = NOW()
-       WHERE id = $2`,
-      [JSON.stringify(fields || []), attempt_id]
+       SET fields_json     = $1,
+           tailored_resume = COALESCE($2, tailored_resume),
+           cover_letter    = COALESCE($3, cover_letter),
+           status          = 'filled',
+           updated_at      = NOW()
+       WHERE id = $4`,
+      [JSON.stringify(fields || []), tailored_resume ?? null, cover_letter ?? null, attempt_id]
     );
 
     res.json({
@@ -158,7 +189,7 @@ router.post('/fill', async (req, res) => {
 });
 
 // GET /api/apply/attempts/:applicationId
-// Returns all attempts for a given application
+// Returns all attempts for a given application (summary, no full fields)
 router.get('/attempts/:applicationId', async (req, res) => {
   const applicationId = parseInt(req.params.applicationId, 10);
   const userId = req.user.id;
@@ -166,7 +197,9 @@ router.get('/attempts/:applicationId', async (req, res) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, status, created_at, updated_at,
-              jsonb_array_length(fields_json) AS field_count
+              jsonb_array_length(fields_json) AS field_count,
+              (tailored_resume IS NOT NULL) AS has_tailored_resume,
+              (cover_letter IS NOT NULL)    AS has_cover_letter
        FROM apply_attempts
        WHERE application_id = $1 AND user_id = $2
        ORDER BY created_at DESC`,
@@ -179,7 +212,7 @@ router.get('/attempts/:applicationId', async (req, res) => {
 });
 
 // GET /api/apply/attempts/:applicationId/:attemptId
-// Returns full attempt with all fields
+// Returns full attempt with all fields + documents
 router.get('/attempts/:applicationId/:attemptId', async (req, res) => {
   const attemptId = parseInt(req.params.attemptId, 10);
   const userId = req.user.id;

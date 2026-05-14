@@ -183,15 +183,20 @@ const SCHEMA_SQL = `
   ALTER TABLE scanner_config ADD COLUMN IF NOT EXISTS companies_seeded BOOLEAN NOT NULL DEFAULT FALSE;
 
   CREATE TABLE IF NOT EXISTS apply_attempts (
-    id             SERIAL PRIMARY KEY,
-    user_id        INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    application_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
-    url            TEXT NOT NULL,
-    fields_json    JSONB NOT NULL DEFAULT '[]',
-    status         VARCHAR(50) DEFAULT 'drafted',
-    created_at     TIMESTAMP DEFAULT NOW(),
-    updated_at     TIMESTAMP DEFAULT NOW()
+    id               SERIAL PRIMARY KEY,
+    user_id          INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    application_id   INTEGER REFERENCES applications(id) ON DELETE CASCADE,
+    url              TEXT NOT NULL,
+    fields_json      JSONB NOT NULL DEFAULT '[]',
+    tailored_resume  TEXT,
+    cover_letter     TEXT,
+    status           VARCHAR(50) DEFAULT 'drafted',
+    created_at       TIMESTAMP DEFAULT NOW(),
+    updated_at       TIMESTAMP DEFAULT NOW()
   );
+
+  ALTER TABLE apply_attempts ADD COLUMN IF NOT EXISTS tailored_resume TEXT;
+  ALTER TABLE apply_attempts ADD COLUMN IF NOT EXISTS cover_letter TEXT;
 
   DROP TRIGGER IF EXISTS update_apply_attempts_updated_at ON apply_attempts;
   CREATE TRIGGER update_apply_attempts_updated_at

@@ -898,8 +898,10 @@ export interface ApplyPrepareResponse {
     | 'AUTH_WALL' | 'TIMEOUT' | 'FETCH_ERROR' | 'JS_REQUIRED' | 'NO_FORM'
     | 'NOT_FOUND' | 'RATE_LIMITED' | 'SERVER_ERROR'
     | 'RESPONSE_TOO_LARGE' | 'NON_HTML_RESPONSE'
-    | (string & {})  // catch-all for HTTP_xxx codes
+    | (string & {})
     | null;
+  tailored_resume: string;
+  cover_letter: string;
   created_at: string;
 }
 
@@ -923,16 +925,38 @@ export async function prepareApply(application_id: number): Promise<ApplyPrepare
   return data;
 }
 
-export async function fillApply(attempt_id: number, fields: FormField[]): Promise<ApplyFillResponse> {
+export async function fillApply(
+  attempt_id: number,
+  fields: FormField[],
+  tailored_resume?: string,
+  cover_letter?: string,
+): Promise<ApplyFillResponse> {
   const res = await fetch('/api/apply/fill', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ attempt_id, fields }),
+    body: JSON.stringify({ attempt_id, fields, tailored_resume, cover_letter }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Fill failed');
   return data;
+}
+
+export async function generateTailoredResumePdf(
+  cvMarkdown: string,
+  applicationId?: number,
+): Promise<Blob> {
+  const res = await fetch('/api/generate-pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ cv_markdown: cvMarkdown, application_id: applicationId }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { error?: string }).error || 'PDF generation failed');
+  }
+  return res.blob();
 }
 
 // Helpers
