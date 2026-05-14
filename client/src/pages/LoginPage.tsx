@@ -8,16 +8,19 @@ export default function LoginPage() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/pipeline';
+  const locationFrom = (location.state as { from?: { pathname: string } })?.from?.pathname;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const defaultRedirect = (u: typeof user) =>
+    u?.account_type === 'employer' ? '/employer' : '/pipeline';
+
   useEffect(() => {
-    if (user) navigate(from, { replace: true });
-  }, [user, navigate, from]);
+    if (user) navigate(locationFrom || defaultRedirect(user), { replace: true });
+  }, [user, navigate, locationFrom]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +28,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate(from, { replace: true });
+      // user state updates asynchronously via useEffect above
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

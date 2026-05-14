@@ -3,6 +3,14 @@ import pool from '../db.js';
 
 const router = Router();
 
+// Enforce employer-only access on all routes in this file
+router.use((req, res, next) => {
+  if (req.user?.account_type !== 'employer') {
+    return res.status(403).json({ error: 'Employer account required.' });
+  }
+  next();
+});
+
 // GET /api/employer/jobs — list this employer's jobs (most recent first)
 router.get('/jobs', async (req, res) => {
   try {

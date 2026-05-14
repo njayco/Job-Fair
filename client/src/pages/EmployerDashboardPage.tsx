@@ -12,6 +12,7 @@ export default function EmployerDashboardPage() {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<EmployerJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [deleting, setDeleting] = useState<number | null>(null);
 
   useEffect(() => {
@@ -21,7 +22,7 @@ export default function EmployerDashboardPage() {
     }
     getEmployerJobs()
       .then(d => setJobs(d.jobs))
-      .catch(() => {})
+      .catch(err => setFetchError(err instanceof Error ? err.message : 'Failed to load searches.'))
       .finally(() => setLoading(false));
   }, [user, navigate]);
 
@@ -58,6 +59,12 @@ export default function EmployerDashboardPage() {
             </Button>
           </Link>
         </div>
+
+        {fetchError && (
+          <div className="p-4 bg-[var(--color-red-indicator)]/10 border border-[var(--color-red-indicator)]/20 rounded-xl text-[var(--color-red-indicator)] font-mono text-sm">
+            {fetchError}
+          </div>
+        )}
 
         {/* Stats bar */}
         {jobs.length > 0 && (
