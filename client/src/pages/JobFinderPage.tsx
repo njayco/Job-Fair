@@ -210,16 +210,19 @@ export default function JobFinderPage() {
   };
 
   const handleEvaluate = (job: JobFinderResult) => {
-    // Prefer full posting text from Exa; fall back to assembled summary
-    const jobDescription = job.full_text && job.full_text.trim().length > 200
+    const jobTitle = `${job.role} at ${job.company}`;
+    const header = [
+      jobTitle,
+      `Location: ${job.location}${job.remote_ok ? ' (Remote OK)' : ''}`,
+      job.comp_low || job.comp_high
+        ? `Compensation: $${job.comp_low ? Math.round(job.comp_low / 1000) : '?'}K–$${job.comp_high ? Math.round(job.comp_high / 1000) : '?'}K/year`
+        : '',
+    ].filter(Boolean).join('\n');
+
+    // Always prepend title/meta header; use full posting text body when available
+    const body = job.full_text && job.full_text.trim().length > 200
       ? job.full_text.trim()
       : [
-          `${job.role} at ${job.company}`,
-          `Location: ${job.location}${job.remote_ok ? ' (Remote OK)' : ''}`,
-          job.comp_low || job.comp_high
-            ? `Compensation: $${job.comp_low ? Math.round(job.comp_low / 1000) : '?'}K–$${job.comp_high ? Math.round(job.comp_high / 1000) : '?'}K/year`
-            : '',
-          '',
           job.description,
           '',
           'Why you match:',
@@ -229,8 +232,10 @@ export default function JobFinderPage() {
           ...job.skill_gaps.map(g => `• ${g}`),
         ].filter(l => l !== undefined).join('\n').trim();
 
+    const jobDescription = `${header}\n\n${body}`;
+
     navigate('/evaluate', {
-      state: { jobDescription, jobUrl: job.url },
+      state: { jobTitle, jobDescription, jobUrl: job.url },
     });
   };
 
