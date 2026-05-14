@@ -175,6 +175,11 @@ const SCHEMA_SQL = `
     updated_at        TIMESTAMP DEFAULT NOW(),
     CONSTRAINT scanner_config_user_id_unique UNIQUE (user_id)
   );
+
+  ALTER TABLE scanner_runs ADD COLUMN IF NOT EXISTS matches_evaluated INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE scanner_runs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'completed';
+  ALTER TABLE scanner_runs ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;
+  ALTER TABLE scanner_runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP;
 `;
 
 export async function bootstrapSchema() {

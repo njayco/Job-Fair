@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import {
@@ -13,7 +13,112 @@ import type {
 import {
   Radar, Play, Building2, Clock, AlertCircle, ExternalLink,
   ChevronRight, RotateCcw, Trash2, Plus, X, CheckCircle, Globe, Tags,
+  FileText, Sparkles,
 } from 'lucide-react';
+
+// ── Score badge ───────────────────────────────────────────────────────────────
+
+function ScoreBadge({ score, recommendation }: { score: number | null; recommendation: string | null }) {
+  if (score === null) return null;
+  const s = parseFloat(String(score));
+  const color = s >= 4.0
+    ? 'text-[var(--color-green-indicator)] border-[var(--color-green-indicator)]/30 bg-[var(--color-green-indicator)]/5'
+    : s >= 3.0
+    ? 'text-[var(--color-yellow-indicator)] border-[var(--color-yellow-indicator)]/30 bg-[var(--color-yellow-indicator)]/5'
+    : 'text-[var(--color-accent)] border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5';
+  const rec = recommendation ?? '';
+  return (
+    <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-xl border-2 shrink-0 ${color}`}>
+      <span className="text-lg font-bold font-mono tabular-nums leading-none">{s.toFixed(1)}</span>
+      {rec && <span className="text-[9px] font-mono opacity-70 mt-0.5">{rec}</span>}
+    </div>
+  );
+}
+
+// ── Job card ─────────────────────────────────────────────────────────────────
+
+function JobCard({ job, onEvaluate }: { job: ScannerJobResult; onEvaluate: (j: ScannerJobResult) => void }) {
+  const typeLabel: Record<ScannerApiType, string> = {
+    greenhouse: 'Greenhouse',
+    greenhouse_eu: 'Greenhouse EU',
+    ashby: 'Ashby',
+    lever: 'Lever',
+  };
+
+  const isEvaluated = job.application_id !== null;
+
+  return (
+    <div className={`bg-[var(--color-surface)] border rounded-xl p-4 transition-colors ${
+      isEvaluated ? 'border-[var(--color-primary)]/30 hover:border-[var(--color-primary)]/60' : 'border-[var(--color-border)] hover:border-[var(--color-primary)]/20'
+    }`}>
+      <div className="flex items-start gap-3">
+        {isEvaluated && <ScoreBadge score={job.score} recommendation={job.recommendation} />}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-[var(--color-text)] leading-snug">{job.title}</h3>
+                {isEvaluated && (
+                  <span className="shrink-0 text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20">
+                    AI EVALUATED
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <span className="text-sm font-medium text-[var(--color-primary)]">{job.company}</span>
+                {job.location && (
+                  <>
+                    <span className="text-[var(--color-border)]">·</span>
+                    <span className="text-xs text-[var(--color-text-muted)]">{job.location}</span>
+                  </>
+                )}
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text-muted)]">
+                  {typeLabel[job.api_type] ?? job.api_type}
+                </span>
+              </div>
+            </div>
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors"
+              title="View job posting"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          </div>
+
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--color-border)]">
+            <a
+              href={job.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] font-mono text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors truncate max-w-[180px]"
+            >
+              {job.url.replace(/^https?:\/\//, '').slice(0, 60)}
+            </a>
+            <div className="flex items-center gap-2 shrink-0 ml-3">
+              {isEvaluated ? (
+                <Link
+                  to={`/results/${job.application_id}`}
+                  className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition-colors"
+                >
+                  <FileText className="w-3 h-3" />
+                  View Report
+                </Link>
+              ) : (
+                <Button variant="outline" onClick={() => onEvaluate(job)} className="font-mono text-xs gap-1.5">
+                  Evaluate Fit
+                  <ChevronRight className="w-3 h-3" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Tag input ────────────────────────────────────────────────────────────────
 
@@ -68,67 +173,7 @@ function TagInput({
   );
 }
 
-// ── Job card ─────────────────────────────────────────────────────────────────
-
-function JobCard({ job, onEvaluate }: { job: ScannerJobResult; onEvaluate: (j: ScannerJobResult) => void }) {
-  const typeLabel: Record<ScannerApiType, string> = {
-    greenhouse: 'Greenhouse',
-    greenhouse_eu: 'Greenhouse EU',
-    ashby: 'Ashby',
-    lever: 'Lever',
-  };
-
-  return (
-    <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 hover:border-[var(--color-primary)]/30 transition-colors">
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="font-semibold text-[var(--color-text)] leading-snug truncate">{job.title}</h3>
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                <span className="text-sm font-medium text-[var(--color-primary)]">{job.company}</span>
-                {job.location && (
-                  <>
-                    <span className="text-[var(--color-border)]">·</span>
-                    <span className="text-xs text-[var(--color-text-muted)]">{job.location}</span>
-                  </>
-                )}
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text-muted)]">
-                  {typeLabel[job.api_type] ?? job.api_type}
-                </span>
-              </div>
-            </div>
-            <a
-              href={job.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors"
-              title="View job posting"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </a>
-          </div>
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--color-border)]">
-            <a
-              href={job.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[10px] font-mono text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors truncate max-w-[220px]"
-            >
-              {job.url.replace(/^https?:\/\//, '').slice(0, 70)}
-            </a>
-            <Button variant="outline" onClick={() => onEvaluate(job)} className="font-mono text-xs gap-1.5 shrink-0 ml-3">
-              Evaluate Fit
-              <ChevronRight className="w-3 h-3" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── API type badge helper ─────────────────────────────────────────────────────
+// ── API type helpers ──────────────────────────────────────────────────────────
 
 const API_TYPE_LABELS: Record<ScannerApiType, string> = {
   greenhouse: 'Greenhouse',
@@ -198,7 +243,7 @@ export default function ScannerPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Scan action ─────────────────────────────────────────────────────────────
+  // ── Scan ──────────────────────────────────────────────────────────────────
 
   const handleScan = async () => {
     setScanning(true);
@@ -213,6 +258,10 @@ export default function ScannerPage() {
         companies_scanned: result.companies_scanned,
         total_fetched: result.total_fetched,
         new_found: result.new_found,
+        matches_evaluated: result.matches_evaluated,
+        status: result.status,
+        started_at: result.started_at,
+        finished_at: result.finished_at,
         created_at: result.created_at,
       }, ...prev]);
       setTimeout(() => {
@@ -230,14 +279,7 @@ export default function ScannerPage() {
     setScanError('');
     try {
       const data = await getScannerRun(id);
-      setRun({
-        run_id: data.id ?? id,
-        companies_scanned: data.companies_scanned,
-        total_fetched: data.total_fetched,
-        new_found: data.new_found,
-        results: data.results_json ?? data.results ?? [],
-        created_at: data.created_at,
-      });
+      setRun(data);
       setTab('results');
     } catch (e) {
       setScanError(e instanceof Error ? e.message : 'Failed to load run.');
@@ -246,44 +288,38 @@ export default function ScannerPage() {
     }
   };
 
-  // ── Evaluate action ─────────────────────────────────────────────────────────
+  // ── Evaluate (manual) ─────────────────────────────────────────────────────
 
   const handleEvaluate = (job: ScannerJobResult) => {
     const jobDescription = [
       `${job.title} at ${job.company}`,
       job.location ? `Location: ${job.location}` : '',
       '',
-      'This position was discovered via the Portal Scanner.',
-      'Paste the full job description below before evaluating for best results.',
+      `This is a ${job.title} role at ${job.company}.`,
+      `Full job posting: ${job.url}`,
+      '',
+      'Paste the full job description here for a more accurate evaluation.',
     ].filter(Boolean).join('\n');
 
     navigate('/evaluate', {
-      state: {
-        jobTitle: `${job.title} at ${job.company}`,
-        jobDescription,
-        jobUrl: job.url,
-      },
+      state: { jobTitle: `${job.title} at ${job.company}`, jobDescription, jobUrl: job.url },
     });
   };
 
-  // ── Company actions ─────────────────────────────────────────────────────────
+  // ── Companies ─────────────────────────────────────────────────────────────
 
   const handleToggle = async (company: ScannerCompany) => {
     try {
       const updated = await updateScannerCompany(company.id, { enabled: !company.enabled });
       setCompanies(prev => prev.map(c => c.id === company.id ? updated : c));
-    } catch (e) {
-      console.error('Toggle failed:', e);
-    }
+    } catch (e) { console.error('Toggle failed:', e); }
   };
 
   const handleDeleteCompany = async (id: number) => {
     try {
       await deleteScannerCompany(id);
       setCompanies(prev => prev.filter(c => c.id !== id));
-    } catch (e) {
-      console.error('Delete failed:', e);
-    }
+    } catch (e) { console.error('Delete failed:', e); }
   };
 
   const handleAddCompany = async () => {
@@ -302,7 +338,7 @@ export default function ScannerPage() {
     }
   };
 
-  // ── Keyword actions ─────────────────────────────────────────────────────────
+  // ── Keywords ──────────────────────────────────────────────────────────────
 
   const handleSaveKeywords = async () => {
     setKwSaving(true);
@@ -312,28 +348,21 @@ export default function ScannerPage() {
       setConfig(saved);
       setKwSaved(true);
       setTimeout(() => setKwSaved(false), 2000);
-    } catch (e) {
-      console.error('Keyword save failed:', e);
-    } finally {
-      setKwSaving(false);
-    }
+    } catch (e) { console.error('Keyword save failed:', e); }
+    finally { setKwSaving(false); }
   };
 
-  // ── Reset history ───────────────────────────────────────────────────────────
+  // ── Reset ─────────────────────────────────────────────────────────────────
 
   const handleReset = async () => {
     if (!resetConfirm) { setResetConfirm(true); return; }
     try {
       await resetScannerHistory();
-      setRuns([]);
-      setRun(null);
-      setResetConfirm(false);
-    } catch (e) {
-      console.error('Reset failed:', e);
-    }
+      setRuns([]); setRun(null); setResetConfirm(false);
+    } catch (e) { console.error('Reset failed:', e); }
   };
 
-  // ── Filtered companies ──────────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────
 
   const filteredCompanies = companySearch
     ? companies.filter(c =>
@@ -345,7 +374,10 @@ export default function ScannerPage() {
   const enabledCount = companies.filter(c => c.enabled).length;
   const lastRun = runs[0];
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  const evalCount = run?.results.filter(r => r.application_id !== null).length ?? 0;
+  const nonEvalCount = (run?.results.length ?? 0) - evalCount;
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <Layout>
@@ -358,17 +390,17 @@ export default function ScannerPage() {
             <h1 className="text-3xl font-bold font-mono tracking-tight">Portal Scanner</h1>
           </div>
           <p className="text-[var(--color-text-muted)] max-w-2xl">
-            Monitors {companies.length || '45+'} company job portals (Greenhouse, Ashby, Lever) and surfaces new openings that match your keywords — so you never miss a fresh posting.
+            Monitors {companies.length || '45+'} company job portals (Greenhouse, Ashby, Lever) for new openings that match your keywords — then auto-evaluates fresh matches against your saved CV using Claude.
           </p>
         </div>
 
-        {/* Stats row */}
+        {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Companies', value: companies.length || '—', sub: `${enabledCount} enabled` },
-            { label: 'Last Run', value: lastRun ? new Date(lastRun.created_at).toLocaleDateString() : '—', sub: lastRun ? `${lastRun.new_found} new` : 'never' },
-            { label: 'Total Runs', value: runs.length, sub: 'scans completed' },
-            { label: 'Keywords', value: (config?.keywords_positive.length ?? 0), sub: 'positive filters' },
+            { label: 'Companies',    value: companies.length || '—', sub: `${enabledCount} enabled` },
+            { label: 'Last Run',     value: lastRun ? new Date(lastRun.created_at).toLocaleDateString() : '—', sub: lastRun ? `${lastRun.new_found} new` : 'never' },
+            { label: 'Auto-Evals',  value: lastRun?.matches_evaluated ?? '—', sub: 'last run' },
+            { label: 'Keywords',     value: config?.keywords_positive.length ?? 0, sub: 'positive filters' },
           ].map(s => (
             <div key={s.label} className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4">
               <div className="text-2xl font-bold font-mono text-[var(--color-text)]">{s.value}</div>
@@ -378,29 +410,24 @@ export default function ScannerPage() {
           ))}
         </div>
 
-        {/* Run button */}
+        {/* Run controls */}
         <div className="flex flex-wrap items-center gap-4">
-          <Button
-            onClick={handleScan}
-            disabled={scanning}
-            variant="primary"
-            className="gap-2 font-mono"
-          >
+          <Button onClick={handleScan} disabled={scanning} variant="primary" className="gap-2 font-mono">
             <Play className="w-4 h-4" />
             {scanning ? 'SCANNING PORTALS…' : 'RUN SCANNER'}
           </Button>
           {scanning && (
             <p className="text-sm font-mono text-[var(--color-text-muted)] animate-pulse">
-              Querying {enabledCount} companies — this takes ~15 seconds…
+              Querying {enabledCount} portals + auto-evaluating matches — up to ~2 min…
             </p>
           )}
-          {resetConfirm ? (
+          {!scanning && resetConfirm ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-[var(--color-accent)]">Reset seen-URL history?</span>
+              <span className="text-xs text-[var(--color-accent)]">Reset all seen-URL history?</span>
               <button onClick={handleReset} className="text-xs font-mono text-[var(--color-red-indicator)] hover:underline">Yes, reset</button>
               <button onClick={() => setResetConfirm(false)} className="text-xs font-mono text-[var(--color-text-muted)] hover:underline">Cancel</button>
             </div>
-          ) : runs.length > 0 && (
+          ) : runs.length > 0 && !scanning && (
             <button
               onClick={() => setResetConfirm(true)}
               className="inline-flex items-center gap-1.5 text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
@@ -423,9 +450,9 @@ export default function ScannerPage() {
         <div className="border-b border-[var(--color-border)]">
           <nav className="flex gap-1 -mb-px">
             {([
-              { key: 'results', icon: Radar, label: 'Results' },
-              { key: 'companies', icon: Building2, label: `Companies (${enabledCount}/${companies.length})` },
-              { key: 'keywords', icon: Tags, label: 'Keywords' },
+              { key: 'results',   icon: Radar,      label: 'Results' },
+              { key: 'companies', icon: Building2,   label: `Companies (${enabledCount}/${companies.length})` },
+              { key: 'keywords',  icon: Tags,        label: 'Keywords' },
             ] as const).map(t => (
               <button
                 key={t.key}
@@ -446,45 +473,95 @@ export default function ScannerPage() {
         {/* ── Results tab ── */}
         {tab === 'results' && (
           <div id="scanner-results" className="space-y-6">
-            {/* Run results */}
+
+            {/* CV missing warning */}
+            {run?.cv_missing && (
+              <div className="p-4 bg-[var(--color-yellow-indicator)]/5 border border-[var(--color-yellow-indicator)]/30 rounded-xl flex items-start gap-3 text-sm text-[var(--color-yellow-indicator)]">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  No saved CV found — jobs were listed but not auto-evaluated.{' '}
+                  <Link to="/account" className="underline hover:no-underline">Save your CV</Link>
+                  {' '}first, then re-run the scanner.
+                </div>
+              </div>
+            )}
+
+            {/* Run summary */}
             {run && !scanning && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-lg font-bold font-mono text-[var(--color-primary)]">
                       {run.new_found} New {run.new_found === 1 ? 'Job' : 'Jobs'} Found
                     </h2>
-                    <p className="text-xs font-mono text-[var(--color-text-muted)] mt-0.5">
-                      Scanned {run.companies_scanned} companies · {run.total_fetched} total postings fetched · {new Date(run.created_at).toLocaleString()}
-                    </p>
+                    <div className="flex flex-wrap gap-3 mt-1 text-xs font-mono text-[var(--color-text-muted)]">
+                      <span>{run.companies_scanned} companies scanned</span>
+                      <span>·</span>
+                      <span>{run.total_fetched} postings fetched</span>
+                      {run.matches_evaluated > 0 && (
+                        <>
+                          <span>·</span>
+                          <span className="text-[var(--color-primary)]">
+                            <Sparkles className="w-3 h-3 inline mr-1 -mt-0.5" />
+                            {run.matches_evaluated} auto-evaluated
+                          </span>
+                        </>
+                      )}
+                      <span>·</span>
+                      <span>{new Date(run.created_at).toLocaleString()}</span>
+                    </div>
                   </div>
                 </div>
 
-                {run.results.length === 0 ? (
+                {/* Evaluated section */}
+                {evalCount > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-bold font-mono uppercase text-[var(--color-primary)] flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      AI-Evaluated Matches ({evalCount})
+                    </h3>
+                    {run.results.filter(j => j.application_id !== null).map((job, i) => (
+                      <JobCard key={`eval-${job.url}-${i}`} job={job} onEvaluate={handleEvaluate} />
+                    ))}
+                  </div>
+                )}
+
+                {/* Non-evaluated section */}
+                {nonEvalCount > 0 && (
+                  <div className="space-y-3">
+                    {evalCount > 0 && (
+                      <h3 className="text-xs font-bold font-mono uppercase text-[var(--color-text-muted)]">
+                        More Matches ({nonEvalCount}) — click Evaluate Fit to analyse
+                      </h3>
+                    )}
+                    {run.results.filter(j => j.application_id === null).map((job, i) => (
+                      <JobCard key={`raw-${job.url}-${i}`} job={job} onEvaluate={handleEvaluate} />
+                    ))}
+                  </div>
+                )}
+
+                {run.results.length === 0 && (
                   <div className="py-16 text-center space-y-3">
                     <CheckCircle className="w-10 h-10 text-[var(--color-green-indicator)] mx-auto opacity-60" />
                     <p className="font-mono text-[var(--color-text-muted)]">No new matching jobs since last scan.</p>
                     <p className="text-xs text-[var(--color-text-muted)]">All current openings were already seen. Run again later or adjust keywords.</p>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {run.results.map((job, i) => (
-                      <JobCard key={`${job.url}-${i}`} job={job} onEvaluate={handleEvaluate} />
-                    ))}
-                  </div>
                 )}
               </div>
             )}
 
+            {/* Empty state */}
             {!run && !scanning && (
               <div className="py-16 text-center space-y-3">
                 <Radar className="w-10 h-10 text-[var(--color-primary)] mx-auto opacity-40" />
                 <p className="font-mono text-[var(--color-text-muted)]">Run the scanner to see new job openings.</p>
-                <p className="text-xs text-[var(--color-text-muted)]">New postings since your last scan will appear here.</p>
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  New postings since your last scan will appear here, with AI evaluations for the top matches.
+                </p>
               </div>
             )}
 
-            {/* History sidebar */}
+            {/* History */}
             {!historyLoading && runs.length > 0 && (
               <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 space-y-3">
                 <h3 className="text-xs font-bold font-mono uppercase text-[var(--color-text-muted)]">
@@ -497,12 +574,16 @@ export default function ScannerPage() {
                       key={r.id}
                       onClick={() => handleLoadRun(r.id)}
                       disabled={loadingRunId === r.id}
-                      className={`flex items-center justify-between text-sm px-3 py-2 rounded-lg hover:bg-[var(--color-bg)] transition-colors text-left ${run?.run_id === r.id ? 'bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20' : ''}`}
+                      className={`flex items-center justify-between text-sm px-3 py-2 rounded-lg hover:bg-[var(--color-bg)] transition-colors text-left ${
+                        run?.run_id === r.id ? 'bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20' : ''
+                      }`}
                     >
                       <span className="flex items-center gap-2 text-[var(--color-text)]">
-                        <span className="font-medium">{r.new_found} new jobs</span>
+                        <span className="font-medium">{r.new_found} new</span>
                         <span className="text-xs text-[var(--color-text-muted)]">· {r.companies_scanned} companies</span>
-                        <span className="text-xs text-[var(--color-text-muted)]">· {r.total_fetched} fetched</span>
+                        {r.matches_evaluated > 0 && (
+                          <span className="text-xs text-[var(--color-primary)]">· {r.matches_evaluated} evaluated</span>
+                        )}
                       </span>
                       <span className="text-xs text-[var(--color-text-muted)] font-mono shrink-0 ml-4">
                         {new Date(r.created_at).toLocaleDateString()}
@@ -528,19 +609,13 @@ export default function ScannerPage() {
               />
               <div className="flex gap-1.5 ml-auto">
                 <button
-                  onClick={() => {
-                    const ids = filteredCompanies.filter(c => !c.enabled).map(c => c.id);
-                    ids.forEach(id => handleToggle(companies.find(c => c.id === id)!));
-                  }}
+                  onClick={() => filteredCompanies.filter(c => !c.enabled).forEach(c => handleToggle(c))}
                   className="text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors"
                 >
                   Enable All
                 </button>
                 <button
-                  onClick={() => {
-                    const toDisable = filteredCompanies.filter(c => c.enabled);
-                    toDisable.forEach(c => handleToggle(c));
-                  }}
+                  onClick={() => filteredCompanies.filter(c => c.enabled).forEach(c => handleToggle(c))}
                   className="text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
                 >
                   Disable All
@@ -555,7 +630,6 @@ export default function ScannerPage() {
               </div>
             </div>
 
-            {/* Add company form */}
             {showAddForm && (
               <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 space-y-4">
                 <h3 className="text-sm font-bold font-mono uppercase text-[var(--color-text)]">Add Company</h3>
@@ -572,9 +646,7 @@ export default function ScannerPage() {
                     onChange={e => setNewCompany(p => ({ ...p, api_type: e.target.value as ScannerApiType }))}
                     className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] focus:outline-none focus:border-[var(--color-primary)] transition-colors"
                   >
-                    {API_TYPES.map(t => (
-                      <option key={t} value={t}>{API_TYPE_LABELS[t]}</option>
-                    ))}
+                    {API_TYPES.map(t => <option key={t} value={t}>{API_TYPE_LABELS[t]}</option>)}
                   </select>
                   <input
                     type="text"
@@ -585,7 +657,7 @@ export default function ScannerPage() {
                   />
                 </div>
                 <p className="text-xs text-[var(--color-text-muted)] font-mono">
-                  Greenhouse slug: from boards.greenhouse.io/<strong>slug</strong> · Ashby: jobs.ashbyhq.com/<strong>slug</strong> · Lever: jobs.lever.co/<strong>slug</strong>
+                  Greenhouse: boards.greenhouse.io/<strong>slug</strong> · Ashby: jobs.ashbyhq.com/<strong>slug</strong> · Lever: jobs.lever.co/<strong>slug</strong>
                 </p>
                 {addError && <p className="text-xs text-[var(--color-red-indicator)]">{addError}</p>}
                 <div className="flex gap-2">
@@ -607,7 +679,7 @@ export default function ScannerPage() {
                     <button
                       onClick={() => handleToggle(company)}
                       aria-label={company.enabled ? 'Disable' : 'Enable'}
-                      className={`w-10 h-5 rounded-full transition-colors flex items-center ${
+                      className={`w-10 h-5 rounded-full transition-colors flex items-center shrink-0 ${
                         company.enabled ? 'bg-[var(--color-primary)]' : 'bg-[var(--color-border)]'
                       }`}
                     >
@@ -625,7 +697,7 @@ export default function ScannerPage() {
                     <button
                       onClick={() => handleDeleteCompany(company.id)}
                       className="p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-red-indicator)] hover:bg-[var(--color-red-indicator)]/5 transition-colors"
-                      title="Remove company"
+                      title="Remove"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -641,55 +713,37 @@ export default function ScannerPage() {
           <div className="space-y-6">
             <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-6">
               <div>
-                <h3 className="text-sm font-bold font-mono uppercase text-[var(--color-green-indicator)] mb-3">
-                  Must Match (any)
-                </h3>
-                <p className="text-xs text-[var(--color-text-muted)] mb-3">
-                  A job title must contain at least one of these keywords to be included.
-                </p>
+                <h3 className="text-sm font-bold font-mono uppercase text-[var(--color-green-indicator)] mb-2">Must Match (any)</h3>
+                <p className="text-xs text-[var(--color-text-muted)] mb-3">A job title must contain at least one of these to be included.</p>
                 <TagInput
-                  tags={posKws}
-                  onChange={setPosKws}
+                  tags={posKws} onChange={setPosKws}
                   placeholder="Add keyword and press Enter…"
                   colorClass="text-[var(--color-green-indicator)] border-[var(--color-green-indicator)]/30 bg-[var(--color-green-indicator)]/5"
                 />
               </div>
               <div>
-                <h3 className="text-sm font-bold font-mono uppercase text-[var(--color-accent)] mb-3">
-                  Exclude If Contains
-                </h3>
-                <p className="text-xs text-[var(--color-text-muted)] mb-3">
-                  Jobs with any of these keywords in the title will be filtered out.
-                </p>
+                <h3 className="text-sm font-bold font-mono uppercase text-[var(--color-accent)] mb-2">Exclude If Contains</h3>
+                <p className="text-xs text-[var(--color-text-muted)] mb-3">Jobs with any of these in the title will be filtered out.</p>
                 <TagInput
-                  tags={negKws}
-                  onChange={setNegKws}
+                  tags={negKws} onChange={setNegKws}
                   placeholder="Add exclude keyword and press Enter…"
                   colorClass="text-[var(--color-accent)] border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5"
                 />
               </div>
               <div className="flex items-center gap-3 pt-2">
-                <Button
-                  variant="primary"
-                  onClick={handleSaveKeywords}
-                  disabled={kwSaving}
-                  className="font-mono gap-2"
-                >
+                <Button variant="primary" onClick={handleSaveKeywords} disabled={kwSaving} className="font-mono gap-2">
                   {kwSaved ? <><CheckCircle className="w-4 h-4" /> Saved!</> : 'Save Keywords'}
                 </Button>
-                <p className="text-xs text-[var(--color-text-muted)]">
-                  Changes take effect on the next scan.
-                </p>
+                <p className="text-xs text-[var(--color-text-muted)]">Changes apply on the next scan run.</p>
               </div>
             </div>
-
-            <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5">
-              <h3 className="text-xs font-bold font-mono uppercase text-[var(--color-text-muted)] mb-2">How keywords work</h3>
+            <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 space-y-2">
+              <h3 className="text-xs font-bold font-mono uppercase text-[var(--color-text-muted)]">How it works</h3>
               <ul className="space-y-1 text-xs text-[var(--color-text-muted)]">
-                <li>· Matching is case-insensitive against the job title only</li>
-                <li>· A title must match at least 1 positive keyword (unless list is empty = accept all)</li>
-                <li>· If a title matches any negative keyword, it is excluded regardless of positive matches</li>
-                <li>· "AI Engineer" as a keyword will match "Senior AI Engineer" but not "AI Sales"</li>
+                <li>· Matching is case-insensitive against the job title</li>
+                <li>· A title must match at least 1 positive keyword (empty list = accept all)</li>
+                <li>· Any negative keyword match excludes the job, regardless of positive matches</li>
+                <li>· Top 10 new matches are auto-evaluated with Claude against your saved CV</li>
               </ul>
             </div>
           </div>

@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import pool from '../db.js';
+import { evaluateJob, generateReportMarkdown } from '../lib/evaluation.js';
 
 const router = Router();
+
+const MAX_AUTO_EVALS = 10;
 
 // ── Seed data ────────────────────────────────────────────────────────────────
 
@@ -149,7 +152,24 @@ function matchesKeywords(title, positiveKws, negativeKws) {
   return positiveKws.some(kw => t.includes(kw.toLowerCase()));
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Build a minimal job description for evaluation ────────────────────────────
+
+function buildJobDescription(job) {
+  const lines = [
+    `${job.title} at ${job.company}`,
+    job.location ? `Location: ${job.location}` : '',
+    '',
+    `This is a ${job.title} role at ${job.company}.`,
+    `Full job posting: ${job.url}`,
+    '',
+    'Note: This listing was discovered via automated portal scanning.',
+    'The AI evaluation below is based on the role title and company context.',
+    'Review the full posting for complete requirements before applying.',
+  ].filter(l => l !== undefined);
+  return lines.join('\n');
+}
+
+// ── Seed helpers ──────────────────────────────────────────────────────────────
 
 async function ensureCompaniesSeeded(userId) {
   const { rows } = await pool.query(
@@ -304,7 +324,8 @@ router.put('/config', async (req, res) => {
 router.get('/runs', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, companies_scanned, total_fetched, new_found, created_at
+      `SELECT id, companies_scanned, total_fetched, new_found, matches_evaluated,
+              status, started_at, finished_at, created_at
        FROM scanner_runs WHERE user_id=$1 ORDER BY created_at DESC LIMIT 30`,
       [req.user.id]
     );
@@ -323,20 +344,26 @@ router.get('/runs/:id', async (req, res) => {
       [id, req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Run not found' });
-    res.json(rows[0]);
+    const run = rows[0];
+    res.json({
+      ...run,
+      results: run.results_json ?? [],
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/scanner/run  — the main scan action
+// POST /api/scanner/run  — fetch + filter + dedupe + auto-evaluate
 router.post('/run', async (req, res) => {
   const userId = req.user.id;
+  const startedAt = new Date();
+
   try {
     await ensureCompaniesSeeded(userId);
     await ensureConfigSeeded(userId);
 
-    // Load config
+    // Load keyword config
     const { rows: configRows } = await pool.query(
       'SELECT keywords_positive, keywords_negative FROM scanner_config WHERE user_id=$1',
       [userId]
@@ -345,14 +372,21 @@ router.post('/run', async (req, res) => {
     const posKws = config?.keywords_positive ?? DEFAULT_KEYWORDS_POSITIVE;
     const negKws = config?.keywords_negative ?? DEFAULT_KEYWORDS_NEGATIVE;
 
+    // Load user's saved CV for auto-evaluation
+    const { rows: cvRows } = await pool.query(
+      'SELECT content_md FROM cvs WHERE user_id=$1',
+      [userId]
+    );
+    const cvContent = cvRows[0]?.content_md ?? null;
+    const canEvaluate = cvContent && cvContent.trim().length >= 50;
+
     // Load enabled companies
     const { rows: companies } = await pool.query(
       'SELECT * FROM scanner_companies WHERE user_id=$1 AND enabled=TRUE ORDER BY name ASC',
       [userId]
     );
-
     if (companies.length === 0) {
-      return res.status(400).json({ error: 'No companies enabled. Please enable at least one company.' });
+      return res.status(400).json({ error: 'No companies enabled. Enable at least one company in the Companies tab.' });
     }
 
     // Load already-seen URLs for this user
@@ -362,7 +396,7 @@ router.post('/run', async (req, res) => {
     );
     const seenUrls = new Set(seenRows.map(r => r.job_url));
 
-    // Fetch from all companies concurrently (in batches of 6)
+    // Fetch from all companies concurrently in batches of 6
     const BATCH_SIZE = 6;
     const allJobs = [];
     for (let i = 0; i < companies.length; i += BATCH_SIZE) {
@@ -377,7 +411,7 @@ router.post('/run', async (req, res) => {
     // Separate new vs already-seen
     const newJobs = relevant.filter(j => !seenUrls.has(j.url));
 
-    // Mark new URLs as seen
+    // Mark new URLs as seen immediately (before evaluation, so parallel tabs don't duplicate)
     for (const job of newJobs) {
       try {
         await pool.query(
@@ -385,16 +419,82 @@ router.post('/run', async (req, res) => {
            VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
           [userId, job.url, job.title.slice(0, 499), job.company]
         );
-      } catch {
-        // ignore duplicate errors
+      } catch { /* ignore duplicates */ }
+    }
+
+    // ── Auto-evaluate up to MAX_AUTO_EVALS new jobs ──────────────────────────
+    const toEvaluate = canEvaluate ? newJobs.slice(0, MAX_AUTO_EVALS) : [];
+    const results = newJobs.map(job => ({ ...job, application_id: null, score: null, recommendation: null }));
+
+    let evaluated = 0;
+    for (const job of toEvaluate) {
+      try {
+        const jobDescription = buildJobDescription(job);
+        const evaluation = await evaluateJob(jobDescription, cvContent);
+        const reportMd = await generateReportMarkdown(evaluation);
+
+        const globalScore = evaluation.score?.global;
+        const keywords = evaluation.keywords || [];
+
+        const { rows: appRows } = await pool.query(
+          `INSERT INTO applications
+             (user_id, company, role, score, status, url, report_md,
+              archetype, tldr, remote, comp_score, keywords, evaluation_json)
+           VALUES ($1,$2,$3,$4,'Evaluated',$5,$6,$7,$8,$9,$10,$11,$12)
+           RETURNING id`,
+          [
+            userId,
+            evaluation.company || job.company,
+            evaluation.role || job.title,
+            globalScore !== undefined ? parseFloat(globalScore) : null,
+            job.url,
+            reportMd,
+            evaluation.archetype || null,
+            evaluation.block_a?.tldr || null,
+            evaluation.block_a?.remote || null,
+            evaluation.score?.comp !== undefined ? parseFloat(evaluation.score.comp) : null,
+            keywords.length > 0 ? keywords : null,
+            JSON.stringify(evaluation),
+          ]
+        );
+
+        const applicationId = appRows[0].id;
+        evaluated++;
+
+        // Update result entry with evaluation data
+        const resultIdx = results.findIndex(r => r.url === job.url);
+        if (resultIdx >= 0) {
+          results[resultIdx] = {
+            ...results[resultIdx],
+            application_id: applicationId,
+            score: globalScore ?? null,
+            recommendation: evaluation.recommendation ?? null,
+          };
+        }
+      } catch (evalErr) {
+        console.error(`Scanner eval error for ${job.title} @ ${job.company}:`, evalErr.message);
+        // Non-fatal — continue with remaining jobs
       }
     }
 
     // Save run record
+    const finishedAt = new Date();
     const { rows: runRows } = await pool.query(
-      `INSERT INTO scanner_runs (user_id, companies_scanned, total_fetched, new_found, results_json)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [userId, companies.length, allJobs.length, newJobs.length, JSON.stringify(newJobs)]
+      `INSERT INTO scanner_runs
+         (user_id, companies_scanned, total_fetched, new_found, matches_evaluated,
+          status, started_at, finished_at, results_json)
+       VALUES ($1,$2,$3,$4,$5,'completed',$6,$7,$8)
+       RETURNING *`,
+      [
+        userId,
+        companies.length,
+        allJobs.length,
+        newJobs.length,
+        evaluated,
+        startedAt,
+        finishedAt,
+        JSON.stringify(results),
+      ]
     );
     const run = runRows[0];
 
@@ -403,8 +503,13 @@ router.post('/run', async (req, res) => {
       companies_scanned: run.companies_scanned,
       total_fetched: run.total_fetched,
       new_found: run.new_found,
-      results: newJobs,
+      matches_evaluated: run.matches_evaluated,
+      status: run.status,
+      started_at: run.started_at,
+      finished_at: run.finished_at,
+      results,
       created_at: run.created_at,
+      cv_missing: !canEvaluate,
     });
   } catch (err) {
     console.error('scanner/run error:', err);
@@ -412,7 +517,7 @@ router.post('/run', async (req, res) => {
   }
 });
 
-// DELETE /api/scanner/history  — reset seen URLs (start fresh)
+// DELETE /api/scanner/history  — reset seen URLs and runs
 router.delete('/history', async (req, res) => {
   try {
     await pool.query('DELETE FROM scanner_seen_urls WHERE user_id=$1', [req.user.id]);

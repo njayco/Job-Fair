@@ -727,6 +727,9 @@ export interface ScannerJobResult {
   location: string;
   company: string;
   api_type: ScannerApiType;
+  application_id: number | null;
+  score: number | null;
+  recommendation: 'APPLY' | 'CONSIDER' | 'SKIP' | null;
 }
 
 export interface ScannerRun {
@@ -734,8 +737,13 @@ export interface ScannerRun {
   companies_scanned: number;
   total_fetched: number;
   new_found: number;
+  matches_evaluated: number;
+  status: string;
+  started_at: string | null;
+  finished_at: string | null;
   results: ScannerJobResult[];
   created_at: string;
+  cv_missing?: boolean;
 }
 
 export interface ScannerRunSummary {
@@ -743,6 +751,10 @@ export interface ScannerRunSummary {
   companies_scanned: number;
   total_fetched: number;
   new_found: number;
+  matches_evaluated: number;
+  status: string;
+  started_at: string | null;
+  finished_at: string | null;
   created_at: string;
 }
 
@@ -833,11 +845,22 @@ export async function getScannerRuns(): Promise<{ runs: ScannerRunSummary[] }> {
   return data;
 }
 
-export async function getScannerRun(id: number): Promise<ScannerRun & { id: number; results_json: ScannerJobResult[] }> {
+export async function getScannerRun(id: number): Promise<ScannerRun> {
   const res = await fetch(`/api/scanner/runs/${id}`, { credentials: 'include' });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Run not found');
-  return data;
+  return {
+    run_id: data.id ?? id,
+    companies_scanned: data.companies_scanned,
+    total_fetched: data.total_fetched,
+    new_found: data.new_found,
+    matches_evaluated: data.matches_evaluated ?? 0,
+    status: data.status ?? 'completed',
+    started_at: data.started_at ?? null,
+    finished_at: data.finished_at ?? null,
+    results: data.results ?? data.results_json ?? [],
+    created_at: data.created_at,
+  };
 }
 
 export async function resetScannerHistory(): Promise<{ reset: boolean }> {
