@@ -873,6 +873,63 @@ export async function resetScannerHistory(): Promise<{ reset: boolean }> {
   return data;
 }
 
+// ── Assisted Apply API ────────────────────────────────────────────────────────
+
+export interface FormField {
+  label: string;
+  name: string;
+  type: 'text' | 'email' | 'tel' | 'url' | 'textarea' | 'select' | 'password' | string;
+  required: boolean;
+  selector: string;
+  placeholder: string;
+  proposed_value: string;
+  approved_value: string;
+}
+
+export interface ApplyPrepareResponse {
+  attempt_id: number;
+  application_id: number;
+  url: string;
+  company: string;
+  role: string;
+  fields: FormField[];
+  detection_type: 'detected' | 'fallback';
+  detection_error: 'AUTH_WALL' | 'TIMEOUT' | 'FETCH_ERROR' | 'JS_REQUIRED' | 'NO_FORM' | null;
+  created_at: string;
+}
+
+export interface ApplyFillResponse {
+  ok: boolean;
+  attempt_id: number;
+  application_id: number;
+  url: string;
+  status: string;
+}
+
+export async function prepareApply(application_id: number): Promise<ApplyPrepareResponse> {
+  const res = await fetch('/api/apply/prepare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ application_id }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw Object.assign(new Error(data.error || 'Preparation failed'), { error_type: data.error_type });
+  return data;
+}
+
+export async function fillApply(attempt_id: number, fields: FormField[]): Promise<ApplyFillResponse> {
+  const res = await fetch('/api/apply/fill', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ attempt_id, fields }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Fill failed');
+  return data;
+}
+
 // Helpers
 export const APP_STATUSES: AppStatus[] = [
   'Evaluated', 'Applied', 'Responded', 'Interview',

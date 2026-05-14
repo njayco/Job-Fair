@@ -13,6 +13,7 @@ import DonatePage from './pages/DonatePage';
 import CareerMatchPage from './pages/CareerMatchPage';
 import JobFinderPage from './pages/JobFinderPage';
 import ScannerPage from './pages/ScannerPage';
+import ApplyPage from './pages/ApplyPage';
 import EmployerDashboardPage from './pages/EmployerDashboardPage';
 import EmployerSearchPage from './pages/EmployerSearchPage';
 import EmployerCandidateProfilePage from './pages/EmployerCandidateProfilePage';
@@ -38,6 +39,7 @@ function App() {
           <Route path="/career-match" element={<ProtectedRoute><CareerMatchPage /></ProtectedRoute>} />
           <Route path="/job-finder" element={<ProtectedRoute><JobFinderPage /></ProtectedRoute>} />
           <Route path="/scanner" element={<ProtectedRoute><ScannerPage /></ProtectedRoute>} />
+          <Route path="/apply/:applicationId" element={<ProtectedRoute><ApplyPage /></ProtectedRoute>} />
 
           {/* Employer-side protected routes */}
           <Route path="/employer" element={<ProtectedRoute><EmployerDashboardPage /></ProtectedRoute>} />

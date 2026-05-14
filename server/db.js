@@ -181,6 +181,22 @@ const SCHEMA_SQL = `
   ALTER TABLE scanner_runs ADD COLUMN IF NOT EXISTS started_at TIMESTAMP;
   ALTER TABLE scanner_runs ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP;
   ALTER TABLE scanner_config ADD COLUMN IF NOT EXISTS companies_seeded BOOLEAN NOT NULL DEFAULT FALSE;
+
+  CREATE TABLE IF NOT EXISTS apply_attempts (
+    id             SERIAL PRIMARY KEY,
+    user_id        INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    application_id INTEGER REFERENCES applications(id) ON DELETE CASCADE,
+    url            TEXT NOT NULL,
+    fields_json    JSONB NOT NULL DEFAULT '[]',
+    status         VARCHAR(50) DEFAULT 'drafted',
+    created_at     TIMESTAMP DEFAULT NOW(),
+    updated_at     TIMESTAMP DEFAULT NOW()
+  );
+
+  DROP TRIGGER IF EXISTS update_apply_attempts_updated_at ON apply_attempts;
+  CREATE TRIGGER update_apply_attempts_updated_at
+    BEFORE UPDATE ON apply_attempts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 `;
 
 export async function bootstrapSchema() {

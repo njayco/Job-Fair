@@ -9,7 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import {
   FileDown, LayoutDashboard, ChevronLeft, ArrowRight, ExternalLink,
   CheckCircle2, AlertCircle, XCircle, TrendingUp, DollarSign, FileEdit, BookOpen,
-  Sparkles, Copy, Download, Check, Code,
+  Sparkles, Copy, Download, Check, Code, Send,
 } from 'lucide-react';
 
 export default function ResultsPage() {
@@ -258,6 +258,14 @@ export default function ResultsPage() {
                 VIEW PIPELINE
               </Button>
             </Link>
+            {app.url && (
+              <Link to={`/apply/${app.id}`}>
+                <Button variant="accent" className="gap-2 font-mono">
+                  <Send className="w-4 h-4" />
+                  ASSISTED APPLY
+                </Button>
+              </Link>
+            )}
             <Link to={`/report/${app.id}`} className="ml-auto">
               <Button variant="outline" className="gap-2 font-mono">
                 FULL REPORT <ArrowRight className="w-4 h-4" />
