@@ -379,6 +379,7 @@ router.get('/runs/:id', async (req, res) => {
 });
 
 // POST /api/scanner/run  — fetch + filter + dedupe + auto-evaluate
+// Body (optional): { cv_content: string }  — overrides the saved CV for this run
 router.post('/run', async (req, res) => {
   const userId = req.user.id;
   const startedAt = new Date();
@@ -396,12 +397,17 @@ router.post('/run', async (req, res) => {
     const posKws = config?.keywords_positive ?? DEFAULT_KEYWORDS_POSITIVE;
     const negKws = config?.keywords_negative ?? DEFAULT_KEYWORDS_NEGATIVE;
 
-    // Load user's saved CV for auto-evaluation
-    const { rows: cvRows } = await pool.query(
-      'SELECT content_md FROM cvs WHERE user_id=$1',
-      [userId]
-    );
-    const cvContent = cvRows[0]?.content_md ?? null;
+    // Use pasted CV from request body if provided, otherwise fall back to saved CV
+    let cvContent = null;
+    if (req.body?.cv_content && req.body.cv_content.trim().length >= 50) {
+      cvContent = req.body.cv_content.trim();
+    } else {
+      const { rows: cvRows } = await pool.query(
+        'SELECT content_md FROM cvs WHERE user_id=$1',
+        [userId]
+      );
+      cvContent = cvRows[0]?.content_md ?? null;
+    }
     const canEvaluate = cvContent && cvContent.trim().length >= 50;
 
     // Load enabled companies

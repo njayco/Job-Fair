@@ -172,7 +172,7 @@ export async function getHealth() {
 
 // CV
 export async function getCv(): Promise<CvData> {
-  const res = await fetch('/api/cv');
+  const res = await fetch('/api/cv', { credentials: 'include' });
   if (!res.ok) throw new Error('Failed to fetch CV');
   return res.json();
 }
@@ -181,6 +181,7 @@ export async function saveCv(content_md: string): Promise<CvData> {
   const res = await fetch('/api/cv', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ content_md }),
   });
   if (!res.ok) throw new Error('Failed to save CV');
@@ -829,13 +830,18 @@ export async function updateScannerConfig(body: {
   return data;
 }
 
-export async function runScanner(): Promise<ScannerRun> {
+export async function runScanner(cvContent?: string): Promise<ScannerRun> {
   const res = await fetch('/api/scanner/run', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
+    body: JSON.stringify(cvContent ? { cv_content: cvContent } : {}),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Scan failed');
+  if (!res.ok) {
+    const err = Object.assign(new Error(data.error || 'Scan failed'), { status: res.status });
+    throw err;
+  }
   return data;
 }
 

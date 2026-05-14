@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import {
   getScannerCompanies, addScannerCompany, updateScannerCompany, deleteScannerCompany,
   getScannerConfig, updateScannerConfig, runScanner, getScannerRuns, getScannerRun,
-  resetScannerHistory,
+  resetScannerHistory, getCv,
 } from '../api';
 import type {
   ScannerCompany, ScannerJobResult, ScannerRun, ScannerRunSummary, ScannerApiType,
@@ -13,6 +13,7 @@ import type {
 import {
   Radar, Play, Building2, Clock, AlertCircle, ExternalLink,
   ChevronRight, RotateCcw, Trash2, Plus, X, CheckCircle, Globe, Tags, FileText, Sparkles,
+  FileUser, ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 // ── Score badge ───────────────────────────────────────────────────────────────
@@ -194,6 +195,11 @@ export default function ScannerPage() {
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
 
+  // Resume / CV
+  const [cvContent, setCvContent] = useState('');
+  const [cvExpanded, setCvExpanded] = useState(false);
+  const [cvSavedText, setCvSavedText] = useState('');
+
   const loadData = useCallback(async () => {
     setCompaniesLoading(true);
     setHistoryLoading(true);
@@ -209,6 +215,15 @@ export default function ScannerPage() {
     finally { setCompaniesLoading(false); setHistoryLoading(false); }
   }, []);
 
+  useEffect(() => {
+    getCv().then(cv => {
+      if (cv.content_md) {
+        setCvSavedText(cv.content_md);
+        setCvContent(cv.content_md);
+      }
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => { loadData(); }, [loadData]);
 
   // ── Scan ──────────────────────────────────────────────────────────────────
@@ -216,7 +231,7 @@ export default function ScannerPage() {
   const handleScan = async () => {
     setScanning(true); setScanError(''); setRun(null); setTab('results');
     try {
-      const result = await runScanner();
+      const result = await runScanner(cvContent.trim() || undefined);
       setRun(result);
       setRuns(prev => [{
         id: result.run_id,
@@ -233,7 +248,12 @@ export default function ScannerPage() {
         document.getElementById('scanner-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 80);
     } catch (e: unknown) {
-      setScanError(e instanceof Error ? e.message : 'Scan failed. Please try again.');
+      const err = e as Error & { status?: number };
+      if (err.status === 401 || err.message?.toLowerCase().includes('authentication') || err.message?.toLowerCase().includes('session')) {
+        setScanError('__auth__');
+      } else {
+        setScanError(err.message || 'Scan failed. Please try again.');
+      }
     } finally { setScanning(false); }
   };
 
@@ -362,6 +382,65 @@ export default function ScannerPage() {
           ))}
         </div>
 
+        {/* Resume card */}
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl overflow-hidden">
+          <button
+            onClick={() => setCvExpanded(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--color-bg)]/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <FileUser className="w-4 h-4 text-[var(--color-primary)]" />
+              <span className="text-sm font-mono font-bold text-[var(--color-text)]">Resume for Auto-Evaluation</span>
+              {cvContent.trim().length >= 50 ? (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-green-indicator)]/10 text-[var(--color-green-indicator)] border border-[var(--color-green-indicator)]/20">
+                  READY
+                </span>
+              ) : (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-yellow-indicator)]/10 text-[var(--color-yellow-indicator)] border border-[var(--color-yellow-indicator)]/20">
+                  MISSING — no auto-evals
+                </span>
+              )}
+            </div>
+            {cvExpanded
+              ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" />
+              : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />
+            }
+          </button>
+
+          {cvExpanded && (
+            <div className="px-5 pb-5 space-y-3 border-t border-[var(--color-border)]">
+              <p className="text-xs text-[var(--color-text-muted)] pt-3">
+                Paste your CV/resume below (Markdown or plain text). The scanner uses this to auto-evaluate matched jobs with Claude.
+              </p>
+              <textarea
+                value={cvContent}
+                onChange={e => setCvContent(e.target.value)}
+                placeholder="Paste your CV or resume here…"
+                rows={12}
+                className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2.5 text-sm font-mono text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] transition-colors resize-y"
+              />
+              <div className="flex items-center gap-3">
+                {cvSavedText && (
+                  <button
+                    onClick={() => setCvContent(cvSavedText)}
+                    className="text-xs font-mono text-[var(--color-primary)] hover:underline"
+                  >
+                    ↩ Reload saved CV
+                  </button>
+                )}
+                {!cvSavedText && (
+                  <Link to="/account" className="text-xs font-mono text-[var(--color-primary)] hover:underline">
+                    Save a CV on your Account page →
+                  </Link>
+                )}
+                <span className="text-xs font-mono text-[var(--color-text-muted)] ml-auto">
+                  {cvContent.trim().length} chars
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Run controls */}
         <div className="flex flex-wrap items-center gap-4">
           <Button onClick={handleScan} disabled={scanning} variant="primary" className="gap-2 font-mono">
@@ -393,7 +472,15 @@ export default function ScannerPage() {
         {scanError && (
           <div className="p-4 bg-[var(--color-red-indicator)]/5 border border-[var(--color-red-indicator)]/30 rounded-xl flex items-start gap-3 text-sm text-[var(--color-red-indicator)]">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            {scanError}
+            {scanError === '__auth__' ? (
+              <span>
+                Your session has expired.{' '}
+                <Link to="/login" className="underline hover:no-underline font-semibold">
+                  Log in again
+                </Link>{' '}
+                to continue.
+              </span>
+            ) : scanError}
           </div>
         )}
 
