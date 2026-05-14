@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { updateCandidateStatus } from '../../api';
 import type { EmployerCandidate } from '../../api';
 import { ChevronUp, ChevronDown, Mail, Phone, Building2, ExternalLink } from 'lucide-react';
@@ -57,6 +57,7 @@ interface Props {
 }
 
 export default function CandidateTable({ jobId, candidates, onCandidatesChange }: Props) {
+  const navigate = useNavigate();
   const [sortKey, setSortKey] = useState<SortKey>('match_score');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [updatingId, setUpdatingId] = useState<number | null>(null);
@@ -140,7 +141,7 @@ export default function CandidateTable({ jobId, candidates, onCandidatesChange }
           {sorted.map((c, idx) => (
             <tr
               key={c.id}
-              onClick={() => window.location.href = `/employer/jobs/${jobId}/candidates/${c.id}`}
+              onClick={() => navigate(`/employer/jobs/${jobId}/candidates/${c.id}`)}
               className={`border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface)]/50 transition-colors cursor-pointer ${idx % 2 === 0 ? '' : 'bg-[var(--color-surface)]/20'}`}
             >
               <td className="px-4 py-3">

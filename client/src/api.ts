@@ -513,8 +513,8 @@ export interface EmployerCandidate {
   strengths: string[] | null;
   gaps: string[] | null;
   seniority: string | null;
-  comp_low: string | null;
-  comp_high: string | null;
+  comp_low: number | null;
+  comp_high: number | null;
   created_at: string;
 }
 

@@ -280,17 +280,28 @@ Respond with ONLY the JSON array, no markdown fences, no commentary.`;
     }
 
     // Update each candidate in DB
+    const VALID_RECS = ['Strong Hire', 'Hire', 'Consider', 'Weak Match', 'Do Not Proceed'];
+    const VALID_SENIORITY = ['junior', 'mid', 'senior', 'principal'];
     const updatedCandidates = [];
     for (let i = 0; i < candidates.length; i++) {
-      const s = scores[i];
+      const s = scores[i] ?? {};
+      // Coerce and validate fields to prevent partial/malformed updates
+      const matchScore = typeof s.match_score === 'number' ? Math.round(Math.min(100, Math.max(0, s.match_score))) : null;
+      const recommendation = VALID_RECS.includes(s.recommendation) ? s.recommendation : 'Consider';
+      const seniority = VALID_SENIORITY.includes(s.seniority) ? s.seniority : null;
+      const compLow = typeof s.comp_low === 'number' ? Math.round(s.comp_low) : null;
+      const compHigh = typeof s.comp_high === 'number' ? Math.round(s.comp_high) : null;
+      const strengths = Array.isArray(s.strengths) ? s.strengths.filter(x => typeof x === 'string') : [];
+      const gaps = Array.isArray(s.gaps) ? s.gaps.filter(x => typeof x === 'string') : [];
+      const summary = typeof s.summary === 'string' ? s.summary : '';
       const evalJson = {
-        recommendation: s.recommendation,
-        summary: s.summary,
-        strengths: s.strengths,
-        gaps: s.gaps,
-        seniority: s.seniority,
-        comp_low: s.comp_low,
-        comp_high: s.comp_high,
+        recommendation,
+        summary,
+        strengths,
+        gaps,
+        seniority,
+        comp_low: compLow,
+        comp_high: compHigh,
       };
       const row = await pool.query(
         `UPDATE employer_candidates
@@ -313,7 +324,7 @@ Respond with ONLY the JSON array, no markdown fences, no commentary.`;
                    evaluation_json->>'comp_high' AS comp_high,
                    created_at`,
         [
-          s.match_score ?? null,
+          matchScore,
           s.name ?? null,
           s.email ?? null,
           s.phone ?? null,
