@@ -219,6 +219,7 @@ export default function ScannerPage() {
 
   // Apply
   const [applyingUrl, setApplyingUrl] = useState<string | null>(null);
+  const [applyError, setApplyError] = useState('');
 
   // Discovery
   const [discovering, setDiscovering] = useState(false);
@@ -337,6 +338,7 @@ export default function ScannerPage() {
     }
 
     setApplyingUrl(job.url);
+    setApplyError('');
     try {
       const app = await createApplication({
         company: job.company,
@@ -346,7 +348,8 @@ export default function ScannerPage() {
       });
       navigate(`/apply/${app.id}`, { state: { ...scannerState, applicationId: app.id } });
     } catch (e) {
-      console.error('Failed to create application for apply:', e);
+      const msg = e instanceof Error ? e.message : 'Failed to start apply — please try again.';
+      setApplyError(msg);
     } finally {
       setApplyingUrl(null);
     }
@@ -681,6 +684,17 @@ export default function ScannerPage() {
                     <span>{new Date(run.created_at).toLocaleString()}</span>
                   </div>
                 </div>
+
+                {/* Apply error */}
+                {applyError && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 text-sm text-[var(--color-accent)]">
+                    <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span className="flex-1">{applyError}</span>
+                    <button onClick={() => setApplyError('')} className="text-[var(--color-accent)]/60 hover:text-[var(--color-accent)] transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
 
                 {/* Evaluated matches */}
                 {evalCount > 0 && (
