@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { getApplications, updateApplicationStatus, scoreColor, APP_STATUSES, getSavedJobs, deleteSavedJob } from '../api';
 import type { Application, AppStatus, SavedJob } from '../api';
-import { Plus, ExternalLink, ChevronDown, Clock, ChevronUp, ChevronsUpDown, FileText, Sparkles, Bookmark, Trash2 } from 'lucide-react';
+import { Plus, ExternalLink, ChevronDown, Clock, ChevronUp, ChevronsUpDown, FileText, Sparkles, Bookmark, Trash2, Send } from 'lucide-react';
 
 type SortField = 'score' | 'date';
 type SortOrder = 'asc' | 'desc';
@@ -176,7 +176,7 @@ export default function PipelinePage() {
                   >
                     Date <SortIcon field="date" />
                   </th>
-                  <th className="px-4 py-3 font-medium w-20 text-right">Report</th>
+                  <th className="px-4 py-3 font-medium w-28 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
@@ -231,14 +231,26 @@ export default function PipelinePage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        to={`/report/${app.id}`}
-                        className="inline-flex items-center gap-1 text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors"
-                        title="View full report"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span className="hidden md:inline">Report</span>
-                      </Link>
+                      <div className="inline-flex items-center justify-end gap-2">
+                        {app.url && (
+                          <Link
+                            to={`/apply/${app.id}`}
+                            className="inline-flex items-center gap-1 text-xs font-mono text-[var(--color-accent)] hover:text-[var(--color-primary)] transition-colors"
+                            title="Assisted Apply — AI form filler"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span className="hidden md:inline">Apply</span>
+                          </Link>
+                        )}
+                        <Link
+                          to={`/report/${app.id}`}
+                          className="inline-flex items-center gap-1 text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors"
+                          title="View full report"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">Report</span>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

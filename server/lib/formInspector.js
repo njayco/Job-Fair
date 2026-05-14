@@ -4,6 +4,8 @@
  * Falls back to common ATS fields when the page is JS-rendered or inaccessible.
  */
 
+import { validateAndResolveUrl } from './evaluation.js';
+
 const BROWSER_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -152,17 +154,50 @@ function parseFormFields(html) {
   return fields;
 }
 
+// Fetch with manual redirect following + SSRF validation on every hop
+async function safeFetch(url, maxRedirects = 5) {
+  let currentUrl = url;
+  let redirectsLeft = maxRedirects;
+
+  while (true) {
+    const res = await fetch(currentUrl, {
+      headers: BROWSER_HEADERS,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15000),
+    });
+
+    const status = res.status;
+
+    // Check for redirect responses
+    if ([301, 302, 303, 307, 308].includes(status)) {
+      if (redirectsLeft <= 0) {
+        throw new Error('Too many redirects');
+      }
+      const location = res.headers.get('location');
+      if (!location) throw new Error('Redirect missing Location header');
+
+      // Resolve relative redirects against the current URL
+      const nextUrl = new URL(location, currentUrl).href;
+
+      // SSRF validation on the redirect target
+      await validateAndResolveUrl(nextUrl);
+
+      currentUrl = nextUrl;
+      redirectsLeft--;
+      continue;
+    }
+
+    return res;
+  }
+}
+
 export async function inspectForm(url) {
   let html = '';
   let fetchError = null;
   let detectionType = 'detected';
 
   try {
-    const res = await fetch(url, {
-      headers: BROWSER_HEADERS,
-      redirect: 'follow',
-      signal: AbortSignal.timeout(15000),
-    });
+    const res = await safeFetch(url);
 
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) {
@@ -177,6 +212,10 @@ export async function inspectForm(url) {
     const msg = err.message.toLowerCase();
     if (msg.includes('timeout') || msg.includes('aborted')) {
       return { fields: COMMON_ATS_FIELDS, detectionType: 'fallback', error: 'TIMEOUT' };
+    }
+    // SSRF or URL validation error — surface clearly
+    if (msg.includes('private') || msg.includes('reserved') || msg.includes('invalid url') || msg.includes('only http')) {
+      throw err;
     }
   }
 
