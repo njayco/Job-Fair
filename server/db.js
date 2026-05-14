@@ -101,6 +101,33 @@ const SCHEMA_SQL = `
     BEFORE UPDATE ON cvs
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS account_type VARCHAR(20) NOT NULL DEFAULT 'employee';
+
+  CREATE TABLE IF NOT EXISTS employer_jobs (
+    id                     SERIAL PRIMARY KEY,
+    user_id                INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    title                  VARCHAR(255),
+    description_text       TEXT,
+    extracted_requirements JSONB,
+    created_at             TIMESTAMP DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS employer_candidates (
+    id              SERIAL PRIMARY KEY,
+    job_id          INTEGER REFERENCES employer_jobs(id) ON DELETE CASCADE,
+    user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    filename        VARCHAR(255),
+    resume_text     TEXT,
+    parsed_name     VARCHAR(255),
+    parsed_email    VARCHAR(255),
+    parsed_phone    VARCHAR(255),
+    parsed_employer VARCHAR(255),
+    match_score     INTEGER,
+    evaluation_json JSONB,
+    status          VARCHAR(50) DEFAULT 'Uploaded',
+    created_at      TIMESTAMP DEFAULT NOW()
+  );
+
   -- Advance the users sequence past any manually inserted rows (e.g. seed user id=1)
   SELECT setval('users_id_seq', GREATEST((SELECT COALESCE(MAX(id), 0) FROM users), 1), true);
 `;

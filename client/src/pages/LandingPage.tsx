@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
-import { Terminal, Crosshair, Zap, BarChart, LayoutDashboard, FileText, Heart, ExternalLink } from 'lucide-react';
+import { Terminal, Crosshair, Zap, BarChart, LayoutDashboard, FileText, Heart, ExternalLink, User, Briefcase } from 'lucide-react';
 
 export default function LandingPage() {
   return (
@@ -63,6 +63,36 @@ export default function LandingPage() {
             <p className="text-[var(--color-text-muted)] text-sm">
               Receive precise suggestions for tweaking your CV and LinkedIn to match the role perfectly.
             </p>
+          </div>
+        </div>
+
+        {/* Dual-side role section */}
+        <div className="w-full grid sm:grid-cols-2 gap-6 pt-4">
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-8 space-y-4 text-left">
+            <div className="w-10 h-10 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center text-[var(--color-primary)]">
+              <User className="w-5 h-5" />
+            </div>
+            <h2 className="text-xl font-bold font-mono">Employee</h2>
+            <p className="text-[var(--color-text-muted)] text-sm leading-relaxed">
+              Evaluate job fit, discover matching careers, find real openings, and track your applications — all powered by AI.
+            </p>
+            <p className="text-xs font-mono text-[var(--color-primary)] font-bold">Find the right jobs.</p>
+            <Link to="/signup">
+              <Button variant="outline" className="w-full font-mono mt-2">GET STARTED FREE</Button>
+            </Link>
+          </div>
+          <div className="bg-[var(--color-surface)] border border-[var(--color-accent)]/30 rounded-xl p-8 space-y-4 text-left">
+            <div className="w-10 h-10 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center text-[var(--color-accent)]">
+              <Briefcase className="w-5 h-5" />
+            </div>
+            <h2 className="text-xl font-bold font-mono">Employer</h2>
+            <p className="text-[var(--color-text-muted)] text-sm leading-relaxed">
+              Upload resumes, rank every applicant with AI, generate interview questions, and track your hiring pipeline.
+            </p>
+            <p className="text-xs font-mono text-[var(--color-accent)] font-bold">Find the right people.</p>
+            <Link to="/signup?role=employer">
+              <Button variant="outline" className="w-full font-mono mt-2 border-[var(--color-accent)]/40 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/5">HIRE WITH AI</Button>
+            </Link>
           </div>
         </div>
 

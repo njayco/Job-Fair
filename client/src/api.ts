@@ -488,6 +488,67 @@ export async function deleteSavedJob(id: number): Promise<{ deleted: boolean; id
   return res.json();
 }
 
+// ── Employer API ─────────────────────────────────────────────────────────────
+
+export interface EmployerJob {
+  id: number;
+  title: string;
+  description_text: string;
+  candidate_count?: number;
+  avg_score?: number;
+  created_at: string;
+}
+
+export interface EmployerCandidate {
+  id: number;
+  filename: string;
+  parsed_name: string | null;
+  parsed_email: string | null;
+  parsed_phone: string | null;
+  parsed_employer: string | null;
+  match_score: number | null;
+  status: string;
+  recommendation: string | null;
+  summary: string | null;
+  created_at: string;
+}
+
+export async function getEmployerJobs(): Promise<{ jobs: EmployerJob[] }> {
+  const res = await fetch('/api/employer/jobs', { credentials: 'include' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch jobs');
+  return data;
+}
+
+export async function createEmployerJob(body: { title?: string; description_text: string }): Promise<EmployerJob> {
+  const res = await fetch('/api/employer/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to create job');
+  return data;
+}
+
+export async function getEmployerJob(id: number): Promise<{ job: EmployerJob; candidates: EmployerCandidate[] }> {
+  const res = await fetch(`/api/employer/jobs/${id}`, { credentials: 'include' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch job');
+  return data;
+}
+
+export async function deleteEmployerJob(id: number): Promise<{ ok: boolean }> {
+  const res = await fetch(`/api/employer/jobs/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to delete job');
+  return data;
+}
+
 // Helpers
 export const APP_STATUSES: AppStatus[] = [
   'Evaluated', 'Applied', 'Responded', 'Interview',

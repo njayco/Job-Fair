@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Terminal, LayoutDashboard, FileText, User, LogOut, Heart, ExternalLink, Sparkles, Search } from 'lucide-react';
+import { Terminal, LayoutDashboard, FileText, User, LogOut, Heart, ExternalLink, Sparkles, Search, Plus } from 'lucide-react';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -11,46 +11,80 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     navigate('/login', { replace: true });
   };
 
+  const isEmployer = user?.account_type === 'employer';
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-[var(--color-border)] bg-[var(--color-surface)] sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
-            <Link to="/" className="flex items-center gap-2">
+            <Link to={isEmployer ? '/employer' : '/'} className="flex items-center gap-2">
               <Terminal className="text-[var(--color-primary)] w-6 h-6" />
               <span className="font-mono font-bold text-lg tracking-tight">CAREER_OPS</span>
+              {isEmployer && (
+                <span className="hidden sm:inline text-xs font-mono px-1.5 py-0.5 rounded bg-[var(--color-accent)]/15 text-[var(--color-accent)] border border-[var(--color-accent)]/20 ml-1">
+                  EMPLOYER
+                </span>
+              )}
             </Link>
+
             <nav className="flex items-center gap-4">
               {user ? (
-                <>
-                  <Link to="/pipeline" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
-                    <LayoutDashboard className="w-4 h-4" />
-                    Pipeline
-                  </Link>
-                  <Link to="/career-match" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
-                    <Sparkles className="w-4 h-4" />
-                    Career Matching
-                  </Link>
-                  <Link to="/job-finder" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
-                    <Search className="w-4 h-4" />
-                    Job Finder
-                  </Link>
-                  <Link to="/evaluate" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-accent)] transition-colors text-[var(--color-text-muted)]">
-                    <FileText className="w-4 h-4" />
-                    New Evaluation
-                  </Link>
-                  <Link to="/account" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
-                    <User className="w-4 h-4" />
-                    <span className="hidden sm:inline max-w-[140px] truncate">{user.email}</span>
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-1 text-sm font-mono text-[var(--color-text-muted)] hover:text-[var(--color-red-indicator)] transition-colors"
-                    title="Sign out"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </>
+                isEmployer ? (
+                  /* ── Employer nav ── */
+                  <>
+                    <Link to="/employer" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-accent)] transition-colors text-[var(--color-text-muted)]">
+                      <LayoutDashboard className="w-4 h-4" />
+                      Dashboard
+                    </Link>
+                    <Link to="/employer/search" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-accent)] transition-colors text-[var(--color-text-muted)]">
+                      <Plus className="w-4 h-4" />
+                      New Search
+                    </Link>
+                    <Link to="/account" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
+                      <User className="w-4 h-4" />
+                      <span className="hidden sm:inline max-w-[140px] truncate">{user.email}</span>
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-1 text-sm font-mono text-[var(--color-text-muted)] hover:text-[var(--color-red-indicator)] transition-colors"
+                      title="Sign out"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  /* ── Employee nav ── */
+                  <>
+                    <Link to="/pipeline" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
+                      <LayoutDashboard className="w-4 h-4" />
+                      Pipeline
+                    </Link>
+                    <Link to="/career-match" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
+                      <Sparkles className="w-4 h-4" />
+                      Career Matching
+                    </Link>
+                    <Link to="/job-finder" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
+                      <Search className="w-4 h-4" />
+                      Job Finder
+                    </Link>
+                    <Link to="/evaluate" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-accent)] transition-colors text-[var(--color-text-muted)]">
+                      <FileText className="w-4 h-4" />
+                      New Evaluation
+                    </Link>
+                    <Link to="/account" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
+                      <User className="w-4 h-4" />
+                      <span className="hidden sm:inline max-w-[140px] truncate">{user.email}</span>
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-1 text-sm font-mono text-[var(--color-text-muted)] hover:text-[var(--color-red-indicator)] transition-colors"
+                      title="Sign out"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </button>
+                  </>
+                )
               ) : (
                 <>
                   <Link to="/login" className="text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
@@ -85,13 +119,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
-            <Link
-              to="/donate"
-              className="inline-flex items-center gap-1.5 font-mono hover:text-[var(--color-primary)] transition-colors"
-            >
-              <Heart className="w-3.5 h-3.5" />
-              Support this project
-            </Link>
+            {!isEmployer && (
+              <Link
+                to="/donate"
+                className="inline-flex items-center gap-1.5 font-mono hover:text-[var(--color-primary)] transition-colors"
+              >
+                <Heart className="w-3.5 h-3.5" />
+                Support this project
+              </Link>
+            )}
           </div>
         </div>
       </footer>

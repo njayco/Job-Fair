@@ -30,17 +30,18 @@ router.post('/signup', async (req, res) => {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
 
+    const account_type = req.body.account_type === 'employer' ? 'employer' : 'employee';
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at',
-      [email.toLowerCase(), password_hash]
+      'INSERT INTO users (email, password_hash, account_type) VALUES ($1, $2, $3) RETURNING id, email, account_type, created_at',
+      [email.toLowerCase(), password_hash, account_type]
     );
 
     const user = result.rows[0];
     const token = signToken({ id: user.id, email: user.email });
     setAuthCookie(res, token);
 
-    res.status(201).json({ id: user.id, email: user.email, created_at: user.created_at });
+    res.status(201).json({ id: user.id, email: user.email, account_type: user.account_type, created_at: user.created_at });
   } catch (err) {
     console.error('POST /api/auth/signup error:', err);
     res.status(500).json({ error: 'Signup failed' });
@@ -96,7 +97,7 @@ router.post('/logout', (req, res) => {
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, created_at FROM users WHERE id = $1',
+      'SELECT id, email, account_type, created_at FROM users WHERE id = $1',
       [req.user.id]
     );
     if (!result.rows.length) {
