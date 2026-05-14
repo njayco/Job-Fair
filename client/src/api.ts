@@ -612,6 +612,72 @@ export async function updateCandidateStatus(
 export type CandidateStatus = 'Uploaded' | 'Evaluated' | 'Interviewing' | 'Offer' | 'Hired' | 'Rejected';
 export const CANDIDATE_STATUSES: CandidateStatus[] = ['Evaluated', 'Interviewing', 'Offer', 'Hired', 'Rejected'];
 
+export interface InterviewQuestion {
+  question: string;
+  rationale: string;
+}
+
+export interface CandidateEvalJson {
+  recommendation: string | null;
+  summary: string | null;
+  strengths: string[] | null;
+  gaps: string[] | null;
+  seniority: string | null;
+  comp_low: number | null;
+  comp_high: number | null;
+  interview_questions?: InterviewQuestion[];
+}
+
+export interface EmployerCandidateFull {
+  id: number;
+  filename: string;
+  parsed_name: string | null;
+  parsed_email: string | null;
+  parsed_phone: string | null;
+  parsed_employer: string | null;
+  match_score: number | null;
+  status: string;
+  evaluation_json: CandidateEvalJson | null;
+  created_at: string;
+}
+
+export interface PipelineCandidate extends EmployerCandidate {
+  job_id: number;
+  job_title: string;
+}
+
+export async function getEmployerCandidate(
+  jobId: number,
+  candidateId: number
+): Promise<{ candidate: EmployerCandidateFull; job: EmployerJob }> {
+  const res = await fetch(`/api/employer/jobs/${jobId}/candidates/${candidateId}`, {
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch candidate');
+  return data;
+}
+
+export async function generateInterviewQuestions(
+  jobId: number,
+  candidateId: number
+): Promise<{ questions: InterviewQuestion[] }> {
+  const res = await fetch(`/api/employer/jobs/${jobId}/candidates/${candidateId}/interview-questions`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to generate questions');
+  return data;
+}
+
+export async function getEmployerPipeline(): Promise<{ candidates: PipelineCandidate[] }> {
+  const res = await fetch('/api/employer/pipeline', { credentials: 'include' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch pipeline');
+  return data;
+}
+
 // Helpers
 export const APP_STATUSES: AppStatus[] = [
   'Evaluated', 'Applied', 'Responded', 'Interview',

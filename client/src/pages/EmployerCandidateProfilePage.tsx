@@ -1,43 +1,382 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
-import { Briefcase, Construction, ArrowLeft } from 'lucide-react';
+import {
+  ArrowLeft, Mail, Phone, Building2, Award, CheckCircle2,
+  XCircle, Loader2, Sparkles, ChevronDown, ChevronUp, User,
+} from 'lucide-react';
+import {
+  getEmployerCandidate, generateInterviewQuestions, updateCandidateStatus,
+} from '../api';
+import type { EmployerCandidateFull, EmployerJob, InterviewQuestion } from '../api';
+import { Button } from '../components/ui/button';
+
+const SCORE_COLOR = (s: number | null) => {
+  if (s === null) return 'text-[var(--color-text-muted)]';
+  if (s >= 75) return 'text-emerald-400';
+  if (s >= 55) return 'text-yellow-400';
+  return 'text-red-400';
+};
+
+const SCORE_RING_COLOR = (s: number | null) => {
+  if (s === null) return '#6b7280';
+  if (s >= 75) return '#34d399';
+  if (s >= 55) return '#facc15';
+  return '#f87171';
+};
+
+const REC_COLORS: Record<string, string> = {
+  'Strong Hire': 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  'Hire': 'bg-green-500/15 text-green-400 border-green-500/30',
+  'Consider': 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+  'Weak Match': 'bg-orange-500/15 text-orange-400 border-orange-500/30',
+  'Do Not Proceed': 'bg-red-500/15 text-red-400 border-red-500/30',
+};
+
+const CANDIDATE_STATUSES = ['Uploaded', 'Evaluated', 'Interviewing', 'Offer', 'Hired', 'Rejected'];
+
+function ScoreRing({ score }: { score: number | null }) {
+  const pct = score ?? 0;
+  const r = 40;
+  const circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
+  return (
+    <div className="relative w-28 h-28 flex-shrink-0">
+      <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r={r} stroke="#ffffff10" strokeWidth="8" fill="none" />
+        <circle
+          cx="50" cy="50" r={r}
+          stroke={SCORE_RING_COLOR(score)} strokeWidth="8" fill="none"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          style={{ transition: 'stroke-dasharray 0.6s ease' }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className={`text-2xl font-bold font-mono ${SCORE_COLOR(score)}`}>{score ?? '—'}</span>
+        <span className="text-[10px] text-[var(--color-text-muted)] font-mono uppercase">fit</span>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-4">
+      <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--color-text-muted)]">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function QuestionItem({ q, idx }: { q: InterviewQuestion; idx: number }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-[var(--color-border)] rounded-lg overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-[var(--color-surface)]/50 transition-colors"
+      >
+        <span className="font-mono text-xs text-[var(--color-accent)] shrink-0 mt-0.5 w-5">Q{idx + 1}</span>
+        <span className="text-sm flex-1">{q.question}</span>
+        {open ? <ChevronUp className="w-4 h-4 shrink-0 text-[var(--color-text-muted)] mt-0.5" /> : <ChevronDown className="w-4 h-4 shrink-0 text-[var(--color-text-muted)] mt-0.5" />}
+      </button>
+      {open && (
+        <div className="px-4 pb-3 pt-0">
+          <div className="ml-8 text-xs text-[var(--color-text-muted)] bg-[var(--color-surface)]/60 rounded p-3 border-l-2 border-[var(--color-accent)]/40">
+            <span className="font-mono text-[var(--color-accent)]/70 uppercase text-[10px]">Rationale — </span>
+            {q.rationale}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function EmployerCandidateProfilePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { id: jobId } = useParams<{ id?: string }>();
+  const { id: jobId, candidateId } = useParams<{ id?: string; candidateId?: string }>();
+
+  const [candidate, setCandidate] = useState<EmployerCandidateFull | null>(null);
+  const [job, setJob] = useState<EmployerJob | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [generatingQs, setGeneratingQs] = useState(false);
+  const [qError, setQError] = useState('');
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   useEffect(() => {
     if (user && user.account_type !== 'employer') navigate('/', { replace: true });
   }, [user, navigate]);
 
+  useEffect(() => {
+    if (!jobId || !candidateId) return;
+    setLoading(true);
+    getEmployerCandidate(Number(jobId), Number(candidateId))
+      .then(data => {
+        setCandidate(data.candidate);
+        setJob(data.job);
+      })
+      .catch(err => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [jobId, candidateId]);
+
+  const handleGenerateQuestions = async () => {
+    if (!jobId || !candidateId) return;
+    setGeneratingQs(true);
+    setQError('');
+    try {
+      const result = await generateInterviewQuestions(Number(jobId), Number(candidateId));
+      setCandidate(prev => prev ? {
+        ...prev,
+        evaluation_json: {
+          ...(prev.evaluation_json || {}),
+          interview_questions: result.questions,
+        } as typeof prev.evaluation_json,
+      } : prev);
+    } catch (err) {
+      setQError(err instanceof Error ? err.message : 'Failed to generate questions.');
+    } finally {
+      setGeneratingQs(false);
+    }
+  };
+
+  const handleStatusChange = async (status: string) => {
+    if (!jobId || !candidateId || !candidate) return;
+    setUpdatingStatus(true);
+    try {
+      await updateCandidateStatus(Number(jobId), Number(candidateId), status);
+      setCandidate(prev => prev ? { ...prev, status } : prev);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const evalJson = candidate?.evaluation_json;
+  const questions = evalJson?.interview_questions;
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--color-accent)]" />
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !candidate) {
+    return (
+      <Layout>
+        <div className="max-w-3xl mx-auto py-16 text-center space-y-4">
+          <p className="text-[var(--color-red-indicator)]">{error || 'Candidate not found.'}</p>
+          <Link to={jobId ? `/employer/jobs/${jobId}` : '/employer'} className="text-sm font-mono text-[var(--color-accent)] hover:underline">
+            ← Back to results
+          </Link>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
-      <div className="max-w-3xl mx-auto space-y-6">
-        <Link
-          to={jobId ? `/employer/jobs/${jobId}` : '/employer'}
-          className="inline-flex items-center gap-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors font-mono"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to results
-        </Link>
+      <div className="max-w-4xl mx-auto space-y-6">
 
-        <div className="py-16 text-center space-y-6">
-          <div className="flex items-center justify-center gap-3">
-            <Briefcase className="w-8 h-8 text-[var(--color-accent)]" />
-            <Construction className="w-8 h-8 text-[var(--color-yellow-indicator)]" />
-          </div>
-          <h1 className="text-2xl font-bold font-mono">Candidate Profile</h1>
-          <p className="text-[var(--color-text-muted)] max-w-lg mx-auto">
-            Full candidate profiles with AI-generated interview questions, strengths breakdown,
-            and pipeline notes are coming in Phase 3.
-          </p>
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--color-yellow-indicator)]/10 border border-[var(--color-yellow-indicator)]/30 text-[var(--color-yellow-indicator)] text-sm font-mono">
-            Phase 3 — Coming Soon
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm font-mono text-[var(--color-text-muted)]">
+          <Link to="/employer" className="hover:text-[var(--color-text)] transition-colors">Dashboard</Link>
+          <span>/</span>
+          {job && (
+            <>
+              <Link to={`/employer/jobs/${jobId}`} className="hover:text-[var(--color-text)] transition-colors truncate max-w-[200px]">
+                {job.title}
+              </Link>
+              <span>/</span>
+            </>
+          )}
+          <span className="text-[var(--color-text)]">{candidate.parsed_name || candidate.filename}</span>
+        </div>
+
+        {/* Header card */}
+        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6">
+          <div className="flex flex-col sm:flex-row items-start gap-6">
+            <ScoreRing score={candidate.match_score} />
+
+            <div className="flex-1 min-w-0 space-y-3">
+              <div className="flex flex-wrap items-start gap-3">
+                <div>
+                  <h1 className="text-2xl font-bold font-mono">
+                    {candidate.parsed_name || <span className="text-[var(--color-text-muted)]">{candidate.filename}</span>}
+                  </h1>
+                  {candidate.parsed_employer && (
+                    <p className="text-sm text-[var(--color-text-muted)] flex items-center gap-1 mt-1">
+                      <Building2 className="w-3.5 h-3.5" />
+                      {candidate.parsed_employer}
+                    </p>
+                  )}
+                </div>
+                {evalJson?.recommendation && (
+                  <span className={`inline-flex items-center gap-1 text-xs font-mono px-2.5 py-1 rounded-full border ${REC_COLORS[evalJson.recommendation] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+                    <Award className="w-3 h-3" />
+                    {evalJson.recommendation}
+                  </span>
+                )}
+              </div>
+
+              {/* Contact */}
+              <div className="flex flex-wrap gap-4 text-sm text-[var(--color-text-muted)]">
+                {candidate.parsed_email && (
+                  <a href={`mailto:${candidate.parsed_email}`} className="flex items-center gap-1.5 hover:text-[var(--color-accent)] transition-colors">
+                    <Mail className="w-3.5 h-3.5" />
+                    {candidate.parsed_email}
+                  </a>
+                )}
+                {candidate.parsed_phone && (
+                  <span className="flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5" />
+                    {candidate.parsed_phone}
+                  </span>
+                )}
+                {!candidate.parsed_email && !candidate.parsed_phone && (
+                  <span className="flex items-center gap-1.5 text-xs">
+                    <User className="w-3.5 h-3.5" />
+                    No contact info extracted
+                  </span>
+                )}
+              </div>
+
+              {/* Status */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Status:</span>
+                <select
+                  value={candidate.status}
+                  disabled={updatingStatus}
+                  onChange={e => handleStatusChange(e.target.value)}
+                  className="text-xs font-mono bg-[var(--color-surface)] border border-[var(--color-border)] rounded px-2 py-1 cursor-pointer"
+                >
+                  {CANDIDATE_STATUSES.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                {updatingStatus && <Loader2 className="w-3 h-3 animate-spin text-[var(--color-text-muted)]" />}
+              </div>
+            </div>
+
+            <Link
+              to={`/employer/jobs/${jobId}`}
+              className="shrink-0 inline-flex items-center gap-1.5 text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors border border-[var(--color-border)] px-3 py-1.5 rounded"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Results
+            </Link>
           </div>
         </div>
+
+        {/* Executive Summary */}
+        {evalJson?.summary && (
+          <Section title="Executive Summary">
+            <p className="text-sm leading-relaxed">{evalJson.summary}</p>
+          </Section>
+        )}
+
+        {/* Strengths & Gaps */}
+        {(evalJson?.strengths?.length || evalJson?.gaps?.length) ? (
+          <div className="grid sm:grid-cols-2 gap-4">
+            {evalJson?.strengths?.length ? (
+              <Section title="Strengths">
+                <ul className="space-y-2">
+                  {evalJson.strengths.map((s, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              </Section>
+            ) : null}
+            {evalJson?.gaps?.length ? (
+              <Section title="Gaps">
+                <ul className="space-y-2">
+                  {evalJson.gaps.map((g, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      {g}
+                    </li>
+                  ))}
+                </ul>
+              </Section>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* Seniority & Compensation */}
+        {(evalJson?.seniority || evalJson?.comp_low || evalJson?.comp_high) ? (
+          <Section title="Seniority & Compensation">
+            <div className="grid sm:grid-cols-2 gap-6">
+              {evalJson?.seniority && (
+                <div className="space-y-1">
+                  <p className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Seniority Level</p>
+                  <p className="text-lg font-bold font-mono capitalize">{evalJson.seniority}</p>
+                </div>
+              )}
+              {(evalJson?.comp_low || evalJson?.comp_high) && (
+                <div className="space-y-1">
+                  <p className="text-xs font-mono text-[var(--color-text-muted)] uppercase">Estimated Compensation</p>
+                  <p className="text-lg font-bold font-mono">
+                    {evalJson.comp_low ? `$${(evalJson.comp_low / 1000).toFixed(0)}k` : '—'}
+                    {evalJson.comp_low && evalJson.comp_high ? ' – ' : ''}
+                    {evalJson.comp_high ? `$${(evalJson.comp_high / 1000).toFixed(0)}k` : ''}
+                    <span className="text-xs font-normal text-[var(--color-text-muted)] ml-1">/ yr USD</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </Section>
+        ) : null}
+
+        {/* Interview Questions */}
+        <Section title="Interview Questions">
+          {questions?.length ? (
+            <div className="space-y-2">
+              {questions.map((q, i) => (
+                <QuestionItem key={i} q={q} idx={i} />
+              ))}
+              <div className="pt-2">
+                <button
+                  onClick={handleGenerateQuestions}
+                  disabled={generatingQs}
+                  className="text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors flex items-center gap-1"
+                >
+                  {generatingQs ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  Regenerate questions
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Generate 10 personalised interview questions tailored to this candidate's background and identified gaps.
+              </p>
+              {qError && (
+                <p className="text-sm text-[var(--color-red-indicator)]">{qError}</p>
+              )}
+              <Button
+                variant="primary"
+                onClick={handleGenerateQuestions}
+                disabled={generatingQs}
+                className="gap-2 font-mono"
+              >
+                {generatingQs
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
+                  : <><Sparkles className="w-4 h-4" /> Generate Interview Questions</>}
+              </Button>
+            </div>
+          )}
+        </Section>
+
       </div>
     </Layout>
   );

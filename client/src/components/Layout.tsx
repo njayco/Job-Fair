@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Terminal, LayoutDashboard, FileText, User, LogOut, Heart, ExternalLink, Sparkles, Search, Plus } from 'lucide-react';
+import { Terminal, LayoutDashboard, FileText, User, LogOut, Heart, ExternalLink, Sparkles, Search, Plus, Kanban } from 'lucide-react';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -40,6 +40,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <Link to="/employer/search" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-accent)] transition-colors text-[var(--color-text-muted)]">
                       <Plus className="w-4 h-4" />
                       New Search
+                    </Link>
+                    <Link to="/employer/pipeline" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-accent)] transition-colors text-[var(--color-text-muted)]">
+                      <Kanban className="w-4 h-4" />
+                      Pipeline
                     </Link>
                     <Link to="/account" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
                       <User className="w-4 h-4" />

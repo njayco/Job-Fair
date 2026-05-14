@@ -15,6 +15,7 @@ import JobFinderPage from './pages/JobFinderPage';
 import EmployerDashboardPage from './pages/EmployerDashboardPage';
 import EmployerSearchPage from './pages/EmployerSearchPage';
 import EmployerCandidateProfilePage from './pages/EmployerCandidateProfilePage';
+import EmployerPipelinePage from './pages/EmployerPipelinePage';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
           <Route path="/employer/search" element={<ProtectedRoute><EmployerSearchPage /></ProtectedRoute>} />
           <Route path="/employer/jobs/:id" element={<ProtectedRoute><EmployerSearchPage /></ProtectedRoute>} />
           <Route path="/employer/jobs/:id/candidates/:candidateId" element={<ProtectedRoute><EmployerCandidateProfilePage /></ProtectedRoute>} />
+          <Route path="/employer/pipeline" element={<ProtectedRoute><EmployerPipelinePage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

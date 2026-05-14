@@ -16,6 +16,9 @@ import { Button } from '../components/ui/button';
 
 type Step = 'jd' | 'upload' | 'evaluating' | 'results';
 
+const SENIORITY_OPTIONS = ['junior', 'mid', 'senior', 'principal'];
+const REC_OPTIONS = ['Strong Hire', 'Hire', 'Consider', 'Weak Match', 'Do Not Proceed'];
+
 export default function EmployerSearchPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -39,6 +42,12 @@ export default function EmployerSearchPage() {
   const [uploadError, setUploadError] = useState('');
   const [parseErrors, setParseErrors] = useState<{ filename: string; error: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter state (results panel — client-side)
+  const [filterMinScore, setFilterMinScore] = useState(0);
+  const [filterSeniority, setFilterSeniority] = useState<string[]>([]);
+  const [filterRec, setFilterRec] = useState<string[]>([]);
+  const [filterEmployer, setFilterEmployer] = useState('');
 
   // Evaluating state
   const [evalError, setEvalError] = useState('');
@@ -142,6 +151,15 @@ export default function EmployerSearchPage() {
 
   // Cleanup timer on unmount
   useEffect(() => () => { if (evalTimerRef) clearInterval(evalTimerRef); }, [evalTimerRef]);
+
+  // Derived filtered candidates (client-side, no API calls)
+  const filteredCandidates = candidates.filter(c => {
+    if (filterMinScore > 0 && (c.match_score ?? 0) < filterMinScore) return false;
+    if (filterSeniority.length && !filterSeniority.includes(c.seniority ?? '')) return false;
+    if (filterRec.length && !filterRec.includes(c.recommendation ?? '')) return false;
+    if (filterEmployer.trim() && !c.parsed_employer?.toLowerCase().includes(filterEmployer.toLowerCase())) return false;
+    return true;
+  });
 
   const resetSearch = () => {
     setStep('jd');
@@ -370,15 +388,98 @@ export default function EmployerSearchPage() {
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-mono font-bold uppercase text-[var(--color-text-muted)]">
-                    {candidates.length} candidate{candidates.length !== 1 ? 's' : ''} · ranked by fit
-                  </h2>
+                {/* Filter bar */}
+                <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 space-y-3">
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Min score */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono uppercase text-[var(--color-text-muted)] flex items-center justify-between">
+                        Min Score
+                        <span className="text-[var(--color-accent)]">{filterMinScore > 0 ? filterMinScore : 'Any'}</span>
+                      </label>
+                      <input
+                        type="range" min={0} max={100} step={5}
+                        value={filterMinScore}
+                        onChange={e => setFilterMinScore(Number(e.target.value))}
+                        className="w-full accent-[var(--color-accent)] cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Employer search */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono uppercase text-[var(--color-text-muted)]">Current Employer</label>
+                      <input
+                        type="text"
+                        value={filterEmployer}
+                        onChange={e => setFilterEmployer(e.target.value)}
+                        placeholder="Search employer…"
+                        className="w-full font-mono text-xs"
+                      />
+                    </div>
+
+                    {/* Seniority */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono uppercase text-[var(--color-text-muted)]">Seniority</label>
+                      <div className="flex flex-wrap gap-1">
+                        {SENIORITY_OPTIONS.map(s => (
+                          <button
+                            key={s}
+                            onClick={() => setFilterSeniority(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])}
+                            className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors capitalize ${
+                              filterSeniority.includes(s)
+                                ? 'bg-[var(--color-accent)]/20 border-[var(--color-accent)]/50 text-[var(--color-accent)]'
+                                : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)]/30'
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Recommendation */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-mono uppercase text-[var(--color-text-muted)]">Recommendation</label>
+                      <div className="flex flex-wrap gap-1">
+                        {REC_OPTIONS.map(r => (
+                          <button
+                            key={r}
+                            onClick={() => setFilterRec(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])}
+                            className={`text-[10px] font-mono px-2 py-0.5 rounded border transition-colors ${
+                              filterRec.includes(r)
+                                ? 'bg-[var(--color-accent)]/20 border-[var(--color-accent)]/50 text-[var(--color-accent)]'
+                                : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)]/30'
+                            }`}
+                          >
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Active filter summary */}
+                  <div className="flex items-center justify-between text-xs font-mono text-[var(--color-text-muted)]">
+                    <span>
+                      {filteredCandidates.length} of {candidates.length} candidate{candidates.length !== 1 ? 's' : ''} · ranked by fit
+                    </span>
+                    {(filterMinScore > 0 || filterSeniority.length || filterRec.length || filterEmployer) && (
+                      <button
+                        onClick={() => { setFilterMinScore(0); setFilterSeniority([]); setFilterRec([]); setFilterEmployer(''); }}
+                        className="text-[var(--color-red-indicator)] hover:underline"
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                  </div>
                 </div>
+
                 <CandidateTable
                   jobId={job?.id ?? Number(jobIdParam)}
-                  candidates={candidates}
-                  onCandidatesChange={setCandidates}
+                  candidates={filteredCandidates}
+                  onCandidatesChange={updated => setCandidates(prev =>
+                    prev.map(c => updated.find(u => u.id === c.id) ?? c)
+                  )}
                 />
               </>
             )}

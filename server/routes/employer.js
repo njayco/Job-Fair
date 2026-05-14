@@ -398,6 +398,140 @@ router.patch('/jobs/:id/candidates/:cid', async (req, res) => {
   }
 });
 
+// GET /api/employer/pipeline
+router.get('/pipeline', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT c.id, c.filename, c.parsed_name, c.parsed_email, c.parsed_phone, c.parsed_employer,
+              c.match_score, c.status, c.created_at,
+              c.evaluation_json->>'recommendation' AS recommendation,
+              c.evaluation_json->>'summary' AS summary,
+              c.evaluation_json->'strengths' AS strengths,
+              c.evaluation_json->'gaps' AS gaps,
+              c.evaluation_json->>'seniority' AS seniority,
+              (c.evaluation_json->>'comp_low')::numeric AS comp_low,
+              (c.evaluation_json->>'comp_high')::numeric AS comp_high,
+              j.id AS job_id, j.title AS job_title
+       FROM employer_candidates c
+       JOIN employer_jobs j ON c.job_id = j.id
+       WHERE j.user_id = $1
+       ORDER BY c.match_score DESC NULLS LAST, c.created_at ASC`,
+      [req.user.id]
+    );
+    res.json({ candidates: result.rows });
+  } catch (err) {
+    console.error('GET /api/employer/pipeline error:', err);
+    res.status(500).json({ error: 'Failed to fetch pipeline.' });
+  }
+});
+
+// GET /api/employer/jobs/:id/candidates/:cid
+router.get('/jobs/:id/candidates/:cid', async (req, res) => {
+  try {
+    const jobCheck = await pool.query(
+      'SELECT id, title, description_text FROM employer_jobs WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!jobCheck.rows.length) return res.status(404).json({ error: 'Job not found.' });
+
+    const result = await pool.query(
+      `SELECT id, filename, parsed_name, parsed_email, parsed_phone, parsed_employer,
+              match_score, status, evaluation_json, created_at
+       FROM employer_candidates
+       WHERE id = $1 AND job_id = $2`,
+      [req.params.cid, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Candidate not found.' });
+
+    res.json({ candidate: result.rows[0], job: jobCheck.rows[0] });
+  } catch (err) {
+    console.error('GET /api/employer/jobs/:id/candidates/:cid error:', err);
+    res.status(500).json({ error: 'Failed to fetch candidate.' });
+  }
+});
+
+// POST /api/employer/jobs/:id/candidates/:cid/interview-questions
+router.post('/jobs/:id/candidates/:cid/interview-questions', async (req, res) => {
+  try {
+    const jobCheck = await pool.query(
+      'SELECT id, title, description_text FROM employer_jobs WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!jobCheck.rows.length) return res.status(404).json({ error: 'Job not found.' });
+    const job = jobCheck.rows[0];
+
+    const candResult = await pool.query(
+      `SELECT id, parsed_name, resume_text, evaluation_json
+       FROM employer_candidates WHERE id = $1 AND job_id = $2`,
+      [req.params.cid, req.params.id]
+    );
+    if (!candResult.rows.length) return res.status(404).json({ error: 'Candidate not found.' });
+    const cand = candResult.rows[0];
+    const evalData = cand.evaluation_json || {};
+
+    const prompt = `You are a senior technical interviewer. Generate 10 personalised interview questions for this candidate applying for the role below.
+
+ROLE: ${job.title}
+
+JOB DESCRIPTION (excerpt):
+${(job.description_text || '').slice(0, 2000)}
+
+CANDIDATE: ${cand.parsed_name || 'Unknown'}
+RECOMMENDATION: ${evalData.recommendation || '—'}
+STRENGTHS: ${(evalData.strengths || []).join('; ')}
+GAPS: ${(evalData.gaps || []).join('; ')}
+SUMMARY: ${evalData.summary || ''}
+
+RESUME EXCERPT:
+${(cand.resume_text || '').slice(0, 3000)}
+
+Generate exactly 10 personalised questions probing their specific background, addressing identified gaps, and revealing leadership potential.
+Return a valid JSON array of exactly 10 objects:
+[
+  {
+    "question": "The interview question",
+    "rationale": "Why this question matters for this specific candidate and role"
+  }
+]
+Respond with ONLY the JSON array, no markdown fences, no commentary.`;
+
+    const message = await anthropicClient.messages.create({
+      model: MODEL,
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const raw = message.content[0]?.text || '';
+    const jsonText = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
+    let questions;
+    try {
+      questions = JSON.parse(jsonText);
+    } catch {
+      return res.status(502).json({ error: 'AI returned invalid response. Please try again.' });
+    }
+
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return res.status(502).json({ error: 'AI returned unexpected structure. Please try again.' });
+    }
+
+    const cleaned = questions.slice(0, 10).map(q => ({
+      question: typeof q.question === 'string' ? q.question : '',
+      rationale: typeof q.rationale === 'string' ? q.rationale : '',
+    })).filter(q => q.question);
+
+    const updatedJson = { ...(cand.evaluation_json || {}), interview_questions: cleaned };
+    await pool.query(
+      'UPDATE employer_candidates SET evaluation_json = $1 WHERE id = $2',
+      [JSON.stringify(updatedJson), cand.id]
+    );
+
+    res.json({ questions: cleaned });
+  } catch (err) {
+    console.error('POST /jobs/:id/candidates/:cid/interview-questions error:', err);
+    res.status(500).json({ error: 'Failed to generate interview questions.' });
+  }
+});
+
 // Multer error handler — converts multer errors into clean JSON responses
 router.use((err, req, res, next) => {
   if (err && err.code && err.code.startsWith('LIMIT_')) {
