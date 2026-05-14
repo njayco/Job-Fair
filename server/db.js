@@ -134,6 +134,47 @@ const SCHEMA_SQL = `
 
   -- Advance the users sequence past any manually inserted rows (e.g. seed user id=1)
   SELECT setval('users_id_seq', GREATEST((SELECT COALESCE(MAX(id), 0) FROM users), 1), true);
+
+  -- Portal Scanner tables
+
+  CREATE TABLE IF NOT EXISTS scanner_companies (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name       VARCHAR(255) NOT NULL,
+    api_type   VARCHAR(20) NOT NULL,
+    api_slug   VARCHAR(255) NOT NULL,
+    enabled    BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS scanner_seen_urls (
+    id        SERIAL PRIMARY KEY,
+    user_id   INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    job_url   TEXT NOT NULL,
+    job_title VARCHAR(500),
+    company   VARCHAR(255),
+    seen_at   TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT scanner_seen_urls_user_url_unique UNIQUE (user_id, job_url)
+  );
+
+  CREATE TABLE IF NOT EXISTS scanner_runs (
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    companies_scanned INTEGER NOT NULL DEFAULT 0,
+    total_fetched   INTEGER NOT NULL DEFAULT 0,
+    new_found       INTEGER NOT NULL DEFAULT 0,
+    results_json    JSONB NOT NULL DEFAULT '[]',
+    created_at      TIMESTAMP DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS scanner_config (
+    id                SERIAL PRIMARY KEY,
+    user_id           INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    keywords_positive TEXT[] NOT NULL DEFAULT '{}',
+    keywords_negative TEXT[] NOT NULL DEFAULT '{}',
+    updated_at        TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT scanner_config_user_id_unique UNIQUE (user_id)
+  );
 `;
 
 export async function bootstrapSchema() {

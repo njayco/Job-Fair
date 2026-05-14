@@ -12,6 +12,7 @@ import ReportPage from './pages/ReportPage';
 import DonatePage from './pages/DonatePage';
 import CareerMatchPage from './pages/CareerMatchPage';
 import JobFinderPage from './pages/JobFinderPage';
+import ScannerPage from './pages/ScannerPage';
 import EmployerDashboardPage from './pages/EmployerDashboardPage';
 import EmployerSearchPage from './pages/EmployerSearchPage';
 import EmployerCandidateProfilePage from './pages/EmployerCandidateProfilePage';
@@ -36,6 +37,7 @@ function App() {
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
           <Route path="/career-match" element={<ProtectedRoute><CareerMatchPage /></ProtectedRoute>} />
           <Route path="/job-finder" element={<ProtectedRoute><JobFinderPage /></ProtectedRoute>} />
+          <Route path="/scanner" element={<ProtectedRoute><ScannerPage /></ProtectedRoute>} />
 
           {/* Employer-side protected routes */}
           <Route path="/employer" element={<ProtectedRoute><EmployerDashboardPage /></ProtectedRoute>} />

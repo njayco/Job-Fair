@@ -699,6 +699,157 @@ export async function getEmployerPipeline(): Promise<{ candidates: PipelineCandi
   return data;
 }
 
+// ── Portal Scanner API ────────────────────────────────────────────────────────
+
+export type ScannerApiType = 'greenhouse' | 'greenhouse_eu' | 'ashby' | 'lever';
+
+export interface ScannerCompany {
+  id: number;
+  user_id: number;
+  name: string;
+  api_type: ScannerApiType;
+  api_slug: string;
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface ScannerConfig {
+  id: number;
+  user_id: number;
+  keywords_positive: string[];
+  keywords_negative: string[];
+  updated_at: string;
+}
+
+export interface ScannerJobResult {
+  title: string;
+  url: string;
+  location: string;
+  company: string;
+  api_type: ScannerApiType;
+}
+
+export interface ScannerRun {
+  run_id: number;
+  companies_scanned: number;
+  total_fetched: number;
+  new_found: number;
+  results: ScannerJobResult[];
+  created_at: string;
+}
+
+export interface ScannerRunSummary {
+  id: number;
+  companies_scanned: number;
+  total_fetched: number;
+  new_found: number;
+  created_at: string;
+}
+
+export async function getScannerCompanies(): Promise<{ companies: ScannerCompany[] }> {
+  const res = await fetch('/api/scanner/companies', { credentials: 'include' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch companies');
+  return data;
+}
+
+export async function addScannerCompany(body: {
+  name: string;
+  api_type: ScannerApiType;
+  api_slug: string;
+}): Promise<ScannerCompany> {
+  const res = await fetch('/api/scanner/companies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to add company');
+  return data;
+}
+
+export async function updateScannerCompany(
+  id: number,
+  body: Partial<{ name: string; api_type: ScannerApiType; api_slug: string; enabled: boolean }>
+): Promise<ScannerCompany> {
+  const res = await fetch(`/api/scanner/companies/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update company');
+  return data;
+}
+
+export async function deleteScannerCompany(id: number): Promise<{ deleted: boolean; id: number }> {
+  const res = await fetch(`/api/scanner/companies/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to delete company');
+  return data;
+}
+
+export async function getScannerConfig(): Promise<ScannerConfig> {
+  const res = await fetch('/api/scanner/config', { credentials: 'include' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch config');
+  return data;
+}
+
+export async function updateScannerConfig(body: {
+  keywords_positive: string[];
+  keywords_negative: string[];
+}): Promise<ScannerConfig> {
+  const res = await fetch('/api/scanner/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to save config');
+  return data;
+}
+
+export async function runScanner(): Promise<ScannerRun> {
+  const res = await fetch('/api/scanner/run', {
+    method: 'POST',
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Scan failed');
+  return data;
+}
+
+export async function getScannerRuns(): Promise<{ runs: ScannerRunSummary[] }> {
+  const res = await fetch('/api/scanner/runs', { credentials: 'include' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch runs');
+  return data;
+}
+
+export async function getScannerRun(id: number): Promise<ScannerRun & { id: number; results_json: ScannerJobResult[] }> {
+  const res = await fetch(`/api/scanner/runs/${id}`, { credentials: 'include' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Run not found');
+  return data;
+}
+
+export async function resetScannerHistory(): Promise<{ reset: boolean }> {
+  const res = await fetch('/api/scanner/history', {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to reset history');
+  return data;
+}
+
 // Helpers
 export const APP_STATUSES: AppStatus[] = [
   'Evaluated', 'Applied', 'Responded', 'Interview',
