@@ -14,6 +14,7 @@ import CareerMatchPage from './pages/CareerMatchPage';
 import JobFinderPage from './pages/JobFinderPage';
 import EmployerDashboardPage from './pages/EmployerDashboardPage';
 import EmployerSearchPage from './pages/EmployerSearchPage';
+import EmployerCandidateProfilePage from './pages/EmployerCandidateProfilePage';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
           <Route path="/employer" element={<ProtectedRoute><EmployerDashboardPage /></ProtectedRoute>} />
           <Route path="/employer/search" element={<ProtectedRoute><EmployerSearchPage /></ProtectedRoute>} />
           <Route path="/employer/jobs/:id" element={<ProtectedRoute><EmployerSearchPage /></ProtectedRoute>} />
+          <Route path="/employer/jobs/:id/candidates/:candidateId" element={<ProtectedRoute><EmployerCandidateProfilePage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

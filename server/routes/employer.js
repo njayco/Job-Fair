@@ -373,4 +373,18 @@ router.patch('/jobs/:id/candidates/:cid', async (req, res) => {
   }
 });
 
+// Multer error handler — converts multer errors into clean JSON responses
+router.use((err, req, res, next) => {
+  if (err && err.code && err.code.startsWith('LIMIT_')) {
+    return res.status(400).json({ error: `Upload limit exceeded: ${err.message}` });
+  }
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (err) {
+    return res.status(400).json({ error: err.message || 'Upload error.' });
+  }
+  next();
+});
+
 export default router;

@@ -140,7 +140,8 @@ export default function CandidateTable({ jobId, candidates, onCandidatesChange }
           {sorted.map((c, idx) => (
             <tr
               key={c.id}
-              className={`border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface)]/50 transition-colors ${idx % 2 === 0 ? '' : 'bg-[var(--color-surface)]/20'}`}
+              onClick={() => window.location.href = `/employer/jobs/${jobId}/candidates/${c.id}`}
+              className={`border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface)]/50 transition-colors cursor-pointer ${idx % 2 === 0 ? '' : 'bg-[var(--color-surface)]/20'}`}
             >
               <td className="px-4 py-3">
                 <ScoreRing score={c.match_score} />
@@ -194,7 +195,7 @@ export default function CandidateTable({ jobId, candidates, onCandidatesChange }
                   )}
                 </div>
               </td>
-              <td className="px-4 py-3">
+              <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                 <select
                   value={c.status}
                   disabled={updatingId === c.id}
@@ -207,7 +208,7 @@ export default function CandidateTable({ jobId, candidates, onCandidatesChange }
                   ))}
                 </select>
               </td>
-              <td className="px-4 py-3">
+              <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                 <Link
                   to={`/employer/jobs/${jobId}/candidates/${c.id}`}
                   className="inline-flex items-center gap-1 text-xs font-mono px-2.5 py-1.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)]/40 hover:text-[var(--color-accent)] transition-colors"
