@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useLocation, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import {
@@ -463,6 +463,8 @@ type DocTab = 'documents' | 'fields';
 export default function ApplyPage() {
   const { applicationId } = useParams<{ applicationId: string }>();
   const appId = parseInt(applicationId || '0', 10);
+  const location = useLocation();
+  const fromScanner = location.state?.from === 'scanner';
 
   const [app, setApp] = useState<Application | null>(null);
   const [appLoading, setAppLoading] = useState(true);
@@ -658,10 +660,11 @@ export default function ApplyPage() {
 
         {/* Back link */}
         <Link
-          to={`/results/${appId}`}
+          to={fromScanner ? '/scanner' : `/results/${appId}`}
           className="inline-flex items-center text-sm font-mono text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors"
         >
-          <ChevronLeft className="w-4 h-4 mr-1" /> Back to Results
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          {fromScanner ? 'Back to Scanner' : 'Back to Results'}
         </Link>
 
         {/* Header */}

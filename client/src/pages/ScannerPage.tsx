@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import {
   getScannerCompanies, addScannerCompany, updateScannerCompany, deleteScannerCompany,
   getScannerConfig, updateScannerConfig, runScanner, getScannerRuns, getScannerRun,
-  resetScannerHistory, getCv, discoverScannerCompanies,
+  resetScannerHistory, getCv, discoverScannerCompanies, createApplication,
 } from '../api';
 import type {
   ScannerCompany, ScannerJobResult, ScannerRun, ScannerRunSummary, ScannerApiType,
@@ -14,7 +14,7 @@ import type {
 import {
   Radar, Play, Building2, Clock, AlertCircle, ExternalLink,
   ChevronRight, RotateCcw, Trash2, Plus, X, CheckCircle, Globe, Tags, FileText, Sparkles,
-  FileUser, ChevronDown, ChevronUp,
+  FileUser, ChevronDown, ChevronUp, Send,
 } from 'lucide-react';
 
 // ── Score badge ───────────────────────────────────────────────────────────────
@@ -37,11 +37,19 @@ function ScoreBadge({ score, recommendation }: { score: number | null; recommend
 
 // ── Job card ─────────────────────────────────────────────────────────────────
 
-function JobCard({ job, onEvaluate }: { job: ScannerJobResult; onEvaluate: (j: ScannerJobResult) => void }) {
+function JobCard({
+  job, onEvaluate, onApply, applyingUrl,
+}: {
+  job: ScannerJobResult;
+  onEvaluate: (j: ScannerJobResult) => void;
+  onApply: (j: ScannerJobResult) => void;
+  applyingUrl: string | null;
+}) {
   const typeLabel: Record<ScannerApiType, string> = {
     greenhouse: 'Greenhouse', greenhouse_eu: 'Greenhouse EU', ashby: 'Ashby', lever: 'Lever',
   };
   const isEvaluated = job.application_id !== null;
+  const isApplying = applyingUrl === job.url;
 
   return (
     <div className={`bg-[var(--color-surface)] border rounded-xl p-4 transition-colors ${
@@ -104,6 +112,19 @@ function JobCard({ job, onEvaluate }: { job: ScannerJobResult; onEvaluate: (j: S
                   Evaluate Fit <ChevronRight className="w-3 h-3" />
                 </Button>
               )}
+              <button
+                onClick={() => onApply(job)}
+                disabled={isApplying}
+                className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+                title="Open Assisted Apply"
+              >
+                {isApplying ? (
+                  <span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                ) : (
+                  <Send className="w-3 h-3" />
+                )}
+                {isApplying ? 'Opening…' : 'Apply'}
+              </button>
             </div>
           </div>
         </div>
@@ -195,6 +216,9 @@ export default function ScannerPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [loadingRunId, setLoadingRunId] = useState<number | null>(null);
   const [resetConfirm, setResetConfirm] = useState(false);
+
+  // Apply
+  const [applyingUrl, setApplyingUrl] = useState<string | null>(null);
 
   // Discovery
   const [discovering, setDiscovering] = useState(false);
@@ -295,6 +319,27 @@ export default function ScannerPage() {
         jobUrl: job.url,
       },
     });
+  };
+
+  const handleApply = async (job: ScannerJobResult) => {
+    if (job.application_id !== null) {
+      navigate(`/apply/${job.application_id}`, { state: { from: 'scanner' } });
+      return;
+    }
+    setApplyingUrl(job.url);
+    try {
+      const app = await createApplication({
+        company: job.company,
+        role: job.title,
+        url: job.url,
+        status: 'Applied',
+      });
+      navigate(`/apply/${app.id}`, { state: { from: 'scanner' } });
+    } catch (e) {
+      console.error('Failed to create application for apply:', e);
+    } finally {
+      setApplyingUrl(null);
+    }
   };
 
   // ── Companies ─────────────────────────────────────────────────────────────
@@ -635,7 +680,7 @@ export default function ScannerPage() {
                       AI-Evaluated Matches ({evalCount})
                     </h3>
                     {run.results.filter(j => j.application_id !== null).map((job, i) => (
-                      <JobCard key={`eval-${job.url}-${i}`} job={job} onEvaluate={handleEvaluate} />
+                      <JobCard key={`eval-${job.url}-${i}`} job={job} onEvaluate={handleEvaluate} onApply={handleApply} applyingUrl={applyingUrl} />
                     ))}
                   </div>
                 )}
@@ -649,7 +694,7 @@ export default function ScannerPage() {
                       </h3>
                     )}
                     {run.results.filter(j => j.application_id === null).map((job, i) => (
-                      <JobCard key={`raw-${job.url}-${i}`} job={job} onEvaluate={handleEvaluate} />
+                      <JobCard key={`raw-${job.url}-${i}`} job={job} onEvaluate={handleEvaluate} onApply={handleApply} applyingUrl={applyingUrl} />
                     ))}
                   </div>
                 )}

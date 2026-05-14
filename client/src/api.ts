@@ -279,6 +279,24 @@ export async function getApplication(id: number): Promise<Application> {
   return res.json();
 }
 
+export async function createApplication(body: {
+  company: string;
+  role: string;
+  url?: string;
+  status?: AppStatus;
+}): Promise<Application> {
+  const res = await fetch('/api/applications', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Failed to create application');
+  }
+  return res.json();
+}
+
 export async function getApplicationReport(id: number): Promise<{ id: number; company: string; role: string; report_md: string }> {
   const res = await fetch(`/api/applications/${id}/report`);
   if (!res.ok) throw new Error('Report not found');
