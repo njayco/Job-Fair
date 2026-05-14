@@ -180,10 +180,10 @@ router.post('/jobs/:id/candidates/upload', upload.array('resumes', 20), async (r
 
         const row = await pool.query(
           `INSERT INTO employer_candidates
-             (job_id, filename, resume_text, parsed_name, parsed_email, parsed_phone, status)
-           VALUES ($1, $2, $3, $4, $5, $6, 'Uploaded')
+             (job_id, filename, resume_text, resume_file, file_mimetype, parsed_name, parsed_email, parsed_phone, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Uploaded')
            RETURNING id, filename, parsed_name, parsed_email, parsed_phone, status, created_at`,
-          [req.params.id, file.originalname, text, contact.parsed_name, contact.parsed_email, contact.parsed_phone]
+          [req.params.id, file.originalname, text, file.buffer, file.mimetype, contact.parsed_name, contact.parsed_email, contact.parsed_phone]
         );
         if (row.rows.length) inserted.push(row.rows[0]);
       } catch (fileErr) {
@@ -456,6 +456,51 @@ router.get('/pipeline', async (req, res) => {
   } catch (err) {
     console.error('GET /api/employer/pipeline error:', err);
     res.status(500).json({ error: 'Failed to fetch pipeline.' });
+  }
+});
+
+// GET /api/employer/jobs/:id/candidates/:cid/resume
+router.get('/jobs/:id/candidates/:cid/resume', async (req, res) => {
+  try {
+    const jobCheck = await pool.query(
+      'SELECT id FROM employer_jobs WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!jobCheck.rows.length) return res.status(404).json({ error: 'Job not found.' });
+
+    const result = await pool.query(
+      `SELECT filename, resume_file, file_mimetype, resume_text
+       FROM employer_candidates
+       WHERE id = $1 AND job_id = $2`,
+      [req.params.cid, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Candidate not found.' });
+
+    const { filename, resume_file, file_mimetype, resume_text } = result.rows[0];
+
+    if (resume_file) {
+      const contentType = file_mimetype || 'application/octet-stream';
+      const safeFilename = (filename || 'resume').replace(/[^\w.\- ]/g, '_');
+      res.set('Content-Type', contentType);
+      res.set('Content-Disposition',
+        `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodeURIComponent(filename || 'resume')}`);
+      return res.send(resume_file);
+    }
+
+    if (resume_text) {
+      const baseName = (filename || 'resume').replace(/\.[^.]+$/, '');
+      const txtName = baseName + '.txt';
+      const safeTxtName = txtName.replace(/[^\w.\- ]/g, '_');
+      res.set('Content-Type', 'text/plain; charset=utf-8');
+      res.set('Content-Disposition',
+        `attachment; filename="${safeTxtName}"; filename*=UTF-8''${encodeURIComponent(txtName)}`);
+      return res.send(resume_text);
+    }
+
+    return res.status(404).json({ error: 'No resume file available for this candidate.' });
+  } catch (err) {
+    console.error('GET /api/employer/jobs/:id/candidates/:cid/resume error:', err);
+    res.status(500).json({ error: 'Failed to download resume.' });
   }
 });
 

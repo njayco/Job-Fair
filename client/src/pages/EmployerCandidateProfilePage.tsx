@@ -5,7 +5,7 @@ import Layout from '../components/Layout';
 import {
   ArrowLeft, Mail, Phone, Building2, Award, CheckCircle2,
   XCircle, Loader2, Sparkles, ChevronDown, ChevronUp, User,
-  Target, BarChart2, DollarSign, UserSearch, MessageSquare,
+  Target, BarChart2, DollarSign, UserSearch, MessageSquare, Download,
 } from 'lucide-react';
 import {
   getEmployerCandidate, generateInterviewQuestions, updateCandidateStatus,
@@ -154,6 +154,8 @@ export default function EmployerCandidateProfilePage() {
   const [qError, setQError] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
+  const [downloadingResume, setDownloadingResume] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
 
   useEffect(() => {
     if (user && user.account_type !== 'employer') navigate('/', { replace: true });
@@ -196,6 +198,39 @@ export default function EmployerCandidateProfilePage() {
       setCandidate(prev => prev ? { ...prev, status } : prev);
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleDownloadResume = async () => {
+    if (!jobId || !candidateId || downloadingResume) return;
+    setDownloadingResume(true);
+    setDownloadError('');
+    try {
+      const res = await fetch(`/api/employer/jobs/${jobId}/candidates/${candidateId}/resume`, {
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Resume not available.');
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const nameMatch = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\n]+)["']?/i);
+      const downloadName = nameMatch
+        ? decodeURIComponent(nameMatch[1].trim())
+        : (candidate?.filename || 'resume');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = downloadName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'Download failed.');
+    } finally {
+      setDownloadingResume(false);
     }
   };
 
@@ -310,13 +345,29 @@ export default function EmployerCandidateProfilePage() {
               </div>
             </div>
 
-            <Link
-              to={`/employer/jobs/${jobId}`}
-              className="shrink-0 inline-flex items-center gap-1.5 text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors border border-[var(--color-border)] px-3 py-1.5 rounded"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Results
-            </Link>
+            <div className="flex flex-col gap-2 shrink-0">
+              <Link
+                to={`/employer/jobs/${jobId}`}
+                className="inline-flex items-center gap-1.5 text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors border border-[var(--color-border)] px-3 py-1.5 rounded"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Results
+              </Link>
+              <button
+                onClick={handleDownloadResume}
+                disabled={downloadingResume}
+                title={downloadError || undefined}
+                className="inline-flex items-center gap-1.5 text-xs font-mono text-[var(--color-accent)] hover:text-[var(--color-accent)]/80 transition-colors border border-[var(--color-accent)]/30 hover:border-[var(--color-accent)]/60 px-3 py-1.5 rounded bg-[var(--color-accent)]/5 hover:bg-[var(--color-accent)]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {downloadingResume
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Download className="w-3.5 h-3.5" />}
+                {downloadingResume ? 'Downloading…' : 'Download'}
+              </button>
+              {downloadError && (
+                <p className="text-[10px] font-mono text-[var(--color-red-indicator)] max-w-[120px] leading-tight">{downloadError}</p>
+              )}
+            </div>
           </div>
         </div>
 

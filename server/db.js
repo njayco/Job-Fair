@@ -128,6 +128,9 @@ const SCHEMA_SQL = `
     created_at      TIMESTAMP DEFAULT NOW()
   );
 
+  ALTER TABLE employer_candidates ADD COLUMN IF NOT EXISTS resume_file BYTEA;
+  ALTER TABLE employer_candidates ADD COLUMN IF NOT EXISTS file_mimetype VARCHAR(100);
+
   -- Advance the users sequence past any manually inserted rows (e.g. seed user id=1)
   SELECT setval('users_id_seq', GREATEST((SELECT COALESCE(MAX(id), 0) FROM users), 1), true);
 `;
