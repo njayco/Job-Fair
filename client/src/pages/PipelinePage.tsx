@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
@@ -79,6 +79,16 @@ export default function PipelinePage() {
       console.error(e);
     }
   };
+
+  const evaluatedByUrl = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const app of apps) {
+      if (app.url && (app.status === 'Evaluated' || app.status === 'Applied')) {
+        map.set(app.url, app.id);
+      }
+    }
+    return map;
+  }, [apps]);
 
   const filteredApps = apps.filter(app => {
     if (filter === 'All') return true;
@@ -276,7 +286,7 @@ export default function PipelinePage() {
                     <th className="px-4 py-3 font-medium hidden lg:table-cell">Role</th>
                     <th className="px-4 py-3 font-medium w-24">Match</th>
                     <th className="px-4 py-3 font-medium hidden sm:table-cell w-32">Saved</th>
-                    <th className="px-4 py-3 font-medium w-16 text-right">Remove</th>
+                    <th className="px-4 py-3 font-medium w-28 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
@@ -321,13 +331,25 @@ export default function PipelinePage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleRemoveSaved(job.id)}
-                          className="inline-flex items-center gap-1 text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
-                          title="Remove saved job"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="inline-flex items-center justify-end gap-3">
+                          {job.url && evaluatedByUrl.has(job.url) && (
+                            <Link
+                              to={`/apply/${evaluatedByUrl.get(job.url)}`}
+                              className="inline-flex items-center gap-1 text-xs font-mono text-[var(--color-accent)] hover:text-[var(--color-primary)] transition-colors"
+                              title="Assisted Apply — AI form filler"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span className="hidden md:inline">Apply</span>
+                            </Link>
+                          )}
+                          <button
+                            onClick={() => handleRemoveSaved(job.id)}
+                            className="inline-flex items-center gap-1 text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+                            title="Remove saved job"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
