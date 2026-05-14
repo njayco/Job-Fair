@@ -70,6 +70,19 @@ const SCHEMA_SQL = `
     created_at TIMESTAMP DEFAULT NOW()
   );
 
+  CREATE TABLE IF NOT EXISTS saved_jobs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    job_finder_run_id INTEGER REFERENCES job_finder_runs(id) ON DELETE SET NULL,
+    role VARCHAR(255) NOT NULL,
+    company VARCHAR(255) NOT NULL,
+    url TEXT,
+    match_pct INTEGER,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT saved_jobs_user_role_company_url_unique UNIQUE (user_id, role, company, url)
+  );
+
   CREATE OR REPLACE FUNCTION update_updated_at_column()
   RETURNS TRIGGER AS $$
   BEGIN

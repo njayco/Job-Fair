@@ -442,6 +442,52 @@ export async function getJobFinderRun(id: number): Promise<JobFinderRun> {
   return res.json();
 }
 
+// Saved Jobs
+export interface SavedJob {
+  id: number;
+  job_finder_run_id: number | null;
+  role: string;
+  company: string;
+  url: string | null;
+  match_pct: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export async function getSavedJobs(): Promise<{ saved_jobs: SavedJob[] }> {
+  const res = await fetch('/api/saved-jobs', { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to fetch saved jobs');
+  return res.json();
+}
+
+export async function saveJob(params: {
+  job_finder_run_id?: number | null;
+  role: string;
+  company: string;
+  url?: string;
+  match_pct?: number;
+  notes?: string;
+}): Promise<SavedJob> {
+  const res = await fetch('/api/saved-jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to save job');
+  return data;
+}
+
+export async function deleteSavedJob(id: number): Promise<{ deleted: boolean; id: number }> {
+  const res = await fetch(`/api/saved-jobs/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to delete saved job');
+  return res.json();
+}
+
 // Helpers
 export const APP_STATUSES: AppStatus[] = [
   'Evaluated', 'Applied', 'Responded', 'Interview',

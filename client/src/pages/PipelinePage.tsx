@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { getApplications, updateApplicationStatus, scoreColor, APP_STATUSES } from '../api';
-import type { Application, AppStatus } from '../api';
-import { Plus, ExternalLink, ChevronDown, Clock, ChevronUp, ChevronsUpDown, FileText, Sparkles } from 'lucide-react';
+import { getApplications, updateApplicationStatus, scoreColor, APP_STATUSES, getSavedJobs, deleteSavedJob } from '../api';
+import type { Application, AppStatus, SavedJob } from '../api';
+import { Plus, ExternalLink, ChevronDown, Clock, ChevronUp, ChevronsUpDown, FileText, Sparkles, Bookmark, Trash2 } from 'lucide-react';
 
 type SortField = 'score' | 'date';
 type SortOrder = 'asc' | 'desc';
@@ -27,6 +27,8 @@ export default function PipelinePage() {
   const [filter, setFilter] = useState<FilterValue>('All');
   const [sortField, setSortField] = useState<SortField>('score');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [savedJobs, setSavedJobs] = useState<SavedJob[]>([]);
+  const [savedLoading, setSavedLoading] = useState(true);
 
   const fetchApps = async () => {
     try {
@@ -43,10 +45,31 @@ export default function PipelinePage() {
     }
   };
 
+  const fetchSaved = async () => {
+    try {
+      const res = await getSavedJobs();
+      setSavedJobs(res.saved_jobs);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSavedLoading(false);
+    }
+  };
+
   useEffect(() => {
     setLoading(true);
     fetchApps();
+    fetchSaved();
   }, [sortField, sortOrder]);
+
+  const handleRemoveSaved = async (id: number) => {
+    try {
+      await deleteSavedJob(id);
+      setSavedJobs(prev => prev.filter(j => j.id !== id));
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const handleStatusChange = async (id: number, status: AppStatus) => {
     try {
@@ -221,6 +244,84 @@ export default function PipelinePage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Saved Jobs section */}
+        {!savedLoading && savedJobs.length > 0 && (
+          <div className="space-y-3 pt-4">
+            <div className="flex items-center gap-2">
+              <Bookmark className="w-4 h-4 text-[var(--color-primary)]" />
+              <h2 className="text-lg font-bold font-mono tracking-tight">Saved Jobs</h2>
+              <span className="text-xs font-mono text-[var(--color-text-muted)] ml-1">· {savedJobs.length} bookmarked</span>
+            </div>
+            <p className="text-sm text-[var(--color-text-muted)]">Jobs you saved from Job Finder to revisit later.</p>
+            <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[var(--color-bg)] border-b border-[var(--color-border)] font-mono text-xs uppercase text-[var(--color-text-muted)]">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Company</th>
+                    <th className="px-4 py-3 font-medium hidden lg:table-cell">Role</th>
+                    <th className="px-4 py-3 font-medium w-24">Match</th>
+                    <th className="px-4 py-3 font-medium hidden sm:table-cell w-32">Saved</th>
+                    <th className="px-4 py-3 font-medium w-16 text-right">Remove</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-border)]">
+                  {savedJobs.map(job => (
+                    <tr key={job.id} className="hover:bg-[var(--color-surface-hover)] transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-[var(--color-text)] flex items-center gap-2">
+                          {job.company}
+                          {job.url && (
+                            <a
+                              href={job.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                        <div className="text-[var(--color-text-muted)] text-xs truncate max-w-[200px] lg:hidden">{job.role}</div>
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell text-[var(--color-text-muted)] text-xs truncate max-w-[200px]">
+                        {job.role}
+                      </td>
+                      <td className="px-4 py-3">
+                        {job.match_pct != null ? (
+                          <span className={`text-sm font-mono font-bold ${
+                            job.match_pct >= 80 ? 'text-[var(--color-green-indicator)]' :
+                            job.match_pct >= 65 ? 'text-[var(--color-yellow-indicator)]' :
+                            'text-[var(--color-text-muted)]'
+                          }`}>
+                            {job.match_pct}%
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[var(--color-text-muted)]">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 hidden sm:table-cell text-[var(--color-text-muted)] text-xs whitespace-nowrap">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(job.created_at).toLocaleDateString()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleRemoveSaved(job.id)}
+                          className="inline-flex items-center gap-1 text-xs font-mono text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition-colors"
+                          title="Remove saved job"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

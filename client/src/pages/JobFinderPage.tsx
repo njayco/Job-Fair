@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import {
-  findJobs, getJobFinderHistory, getJobFinderRun, getCv,
+  findJobs, getJobFinderHistory, getJobFinderRun, getCv, getSavedJobs, saveJob, deleteSavedJob,
 } from '../api';
 import type { JobFinderRun, JobFinderResult, JobFinderHistoryItem, JobFinderPreferences } from '../api';
 import {
   Search, AlertCircle, Clock, FileText, ExternalLink,
-  CheckCircle, XCircle, TrendingUp, ChevronRight, RotateCcw,
+  CheckCircle, XCircle, TrendingUp, ChevronRight, RotateCcw, Bookmark, BookmarkCheck,
 } from 'lucide-react';
 
 function MatchBadge({ pct }: { pct: number }) {
@@ -34,7 +34,21 @@ function CompRange({ low, high }: { low: number | null; high: number | null }) {
   );
 }
 
-function JobCard({ job, onEvaluate }: { job: JobFinderResult; onEvaluate: (job: JobFinderResult) => void }) {
+function JobCard({
+  job,
+  onEvaluate,
+  savedJobId,
+  onSave,
+  onUnsave,
+}: {
+  job: JobFinderResult;
+  onEvaluate: (job: JobFinderResult) => void;
+  savedJobId?: number;
+  onSave: (job: JobFinderResult) => void;
+  onUnsave: (savedId: number) => void;
+}) {
+  const isSaved = savedJobId !== undefined;
+
   return (
     <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 space-y-4 hover:border-[var(--color-primary)]/30 transition-colors">
       <div className="flex items-start gap-4">
@@ -105,14 +119,29 @@ function JobCard({ job, onEvaluate }: { job: JobFinderResult; onEvaluate: (job: 
         >
           {job.url.replace(/^https?:\/\//, '').slice(0, 60)}
         </a>
-        <Button
-          variant="outline"
-          onClick={() => onEvaluate(job)}
-          className="font-mono text-xs gap-1.5 shrink-0"
-        >
-          Evaluate Fit
-          <ChevronRight className="w-3 h-3" />
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => isSaved ? onUnsave(savedJobId!) : onSave(job)}
+            aria-label={isSaved ? 'Remove from saved' : 'Save job'}
+            className={`inline-flex items-center gap-1.5 text-xs font-mono px-2 py-1.5 rounded-lg border transition-colors ${
+              isSaved
+                ? 'text-[var(--color-primary)] border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)]/20'
+                : 'text-[var(--color-text-muted)] border-[var(--color-border)] bg-transparent hover:text-[var(--color-primary)] hover:border-[var(--color-primary)]/40 hover:bg-[var(--color-primary)]/5'
+            }`}
+          >
+            {isSaved
+              ? <><BookmarkCheck className="w-3.5 h-3.5" />Saved</>
+              : <><Bookmark className="w-3.5 h-3.5" />Save Job</>}
+          </button>
+          <Button
+            variant="outline"
+            onClick={() => onEvaluate(job)}
+            className="font-mono text-xs gap-1.5"
+          >
+            Evaluate Fit
+            <ChevronRight className="w-3 h-3" />
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -135,6 +164,8 @@ export default function JobFinderPage() {
   const [error, setError] = useState('');
   const [noCV, setNoCV] = useState(false);
   const [cvText, setCvText] = useState('');
+  // savedMap: key = "role|||company|||url", value = saved_job id
+  const [savedMap, setSavedMap] = useState<Map<string, number>>(new Map());
 
   const [prefs, setPrefs] = useState<JobFinderPreferences>({
     location: '',
@@ -143,6 +174,10 @@ export default function JobFinderPage() {
     salary_max: '',
     focus_area: '',
   });
+
+  function jobKey(job: { role: string; company: string; url: string }) {
+    return `${job.role}|||${job.company}|||${job.url}`;
+  }
 
   useEffect(() => {
     Promise.all([
@@ -154,6 +189,13 @@ export default function JobFinderPage() {
           setCvText(cv.content_md);
         }
       }).catch(() => setNoCV(true)),
+      getSavedJobs().then(d => {
+        const map = new Map<string, number>();
+        for (const sj of d.saved_jobs) {
+          map.set(jobKey(sj as { role: string; company: string; url: string }), sj.id);
+        }
+        setSavedMap(map);
+      }).catch(() => {}),
     ]).finally(() => setHistoryLoading(false));
   }, []);
 
@@ -206,6 +248,34 @@ export default function JobFinderPage() {
       setError(e instanceof Error ? e.message : 'Failed to load result.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSave = async (job: JobFinderResult) => {
+    try {
+      const saved = await saveJob({
+        job_finder_run_id: run?.id ?? null,
+        role: job.role,
+        company: job.company,
+        url: job.url,
+        match_pct: job.match_pct,
+      });
+      setSavedMap(prev => new Map(prev).set(jobKey(job), saved.id));
+    } catch (e) {
+      console.error('Failed to save job:', e);
+    }
+  };
+
+  const handleUnsave = async (savedId: number, job: JobFinderResult) => {
+    try {
+      await deleteSavedJob(savedId);
+      setSavedMap(prev => {
+        const next = new Map(prev);
+        next.delete(jobKey(job));
+        return next;
+      });
+    } catch (e) {
+      console.error('Failed to unsave job:', e);
     }
   };
 
@@ -431,9 +501,20 @@ export default function JobFinderPage() {
             </div>
 
             <div className="space-y-4">
-              {run.results.map((job, i) => (
-                <JobCard key={i} job={job} onEvaluate={handleEvaluate} />
-              ))}
+              {run.results.map((job, i) => {
+                const key = jobKey(job);
+                const savedId = savedMap.get(key);
+                return (
+                  <JobCard
+                    key={i}
+                    job={job}
+                    onEvaluate={handleEvaluate}
+                    savedJobId={savedId}
+                    onSave={handleSave}
+                    onUnsave={(sid) => handleUnsave(sid, job)}
+                  />
+                );
+              })}
             </div>
 
             <div className="p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs text-[var(--color-text-muted)] font-mono">
