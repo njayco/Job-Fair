@@ -202,6 +202,8 @@ export default function ScannerPage() {
   const [discoverError, setDiscoverError] = useState('');
   const [discoverPanel, setDiscoverPanel] = useState(false);
   const [addingSlug, setAddingSlug] = useState<string | null>(null);
+  const [selectedSlugs, setSelectedSlugs] = useState<Set<string>>(new Set());
+  const [bulkAdding, setBulkAdding] = useState(false);
 
   // Resume / CV
   const [cvContent, setCvContent] = useState('');
@@ -324,22 +326,20 @@ export default function ScannerPage() {
   // ── Discovery ─────────────────────────────────────────────────────────────
 
   const handleDiscover = async () => {
-    if (!cvContent.trim() || cvContent.trim().length < 50) {
-      setDiscoverError('Please add your CV/resume above before running discovery.');
-      setDiscoverPanel(true);
-      return;
-    }
     setDiscovering(true);
     setDiscoverError('');
     setDiscoveredCompanies([]);
+    setSelectedSlugs(new Set());
     setDiscoverPanel(true);
     try {
-      const result = await discoverScannerCompanies(cvContent.trim());
+      // Pass local cvContent if available; backend falls back to saved CV in DB
+      const cv = cvContent.trim().length >= 50 ? cvContent.trim() : undefined;
+      const result = await discoverScannerCompanies(cv);
       setDiscoveredCompanies(result.companies);
     } catch (e: unknown) {
       const err = e as Error & { code?: string };
       if (err.code === 'NO_CV') {
-        setDiscoverError('No CV found. Add your resume in the card above, then try again.');
+        setDiscoverError('No CV saved. Add your resume in the card above or on your Account page, then try again.');
       } else {
         setDiscoverError(err.message || 'Discovery failed. Please try again.');
       }
@@ -354,6 +354,7 @@ export default function ScannerPage() {
       const added = await addScannerCompany({ name: c.name, api_type: c.api_type, api_slug: c.api_slug });
       setCompanies(prev => [...prev, added].sort((a, b) => a.name.localeCompare(b.name)));
       setDiscoveredCompanies(prev => prev.filter(d => d.api_slug !== c.api_slug));
+      setSelectedSlugs(prev => { const n = new Set(prev); n.delete(c.api_slug); return n; });
     } catch (e) {
       console.error('Add discovered company failed:', e);
     } finally {
@@ -361,14 +362,26 @@ export default function ScannerPage() {
     }
   };
 
-  const handleAddAllDiscovered = async () => {
-    const toAdd = [...discoveredCompanies];
-    setDiscoveredCompanies([]);
+  const handleAddSelected = async () => {
+    const toAdd = discoveredCompanies.filter(c => selectedSlugs.has(c.api_slug));
+    if (toAdd.length === 0) return;
+    setBulkAdding(true);
+    setDiscoveredCompanies(prev => prev.filter(c => !selectedSlugs.has(c.api_slug)));
+    setSelectedSlugs(new Set());
     for (const c of toAdd) {
       try {
         const added = await addScannerCompany({ name: c.name, api_type: c.api_type, api_slug: c.api_slug });
         setCompanies(prev => [...prev, added].sort((a, b) => a.name.localeCompare(b.name)));
       } catch {}
+    }
+    setBulkAdding(false);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedSlugs.size === discoveredCompanies.length) {
+      setSelectedSlugs(new Set());
+    } else {
+      setSelectedSlugs(new Set(discoveredCompanies.map(c => c.api_slug)));
     }
   };
 
@@ -804,13 +817,24 @@ export default function ScannerPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {discoveredCompanies.length > 1 && (
-                      <button
-                        onClick={handleAddAllDiscovered}
-                        className="text-xs font-mono px-3 py-1 rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors"
-                      >
-                        Add All ({discoveredCompanies.length})
-                      </button>
+                    {discoveredCompanies.length > 0 && (
+                      <>
+                        <button
+                          onClick={toggleSelectAll}
+                          className="text-xs font-mono px-2.5 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+                        >
+                          {selectedSlugs.size === discoveredCompanies.length ? 'None' : 'All'}
+                        </button>
+                        {selectedSlugs.size > 0 && (
+                          <button
+                            onClick={handleAddSelected}
+                            disabled={bulkAdding}
+                            className="text-xs font-mono px-3 py-1 rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
+                          >
+                            {bulkAdding ? 'Adding…' : `Add Selected (${selectedSlugs.size})`}
+                          </button>
+                        )}
+                      </>
                     )}
                     <button
                       onClick={() => setDiscoverPanel(false)}
@@ -846,14 +870,31 @@ export default function ScannerPage() {
                 {discoveredCompanies.length > 0 && (
                   <div className="divide-y divide-[var(--color-border)] max-h-[480px] overflow-y-auto">
                     {discoveredCompanies.map(c => {
+                      const isSelected = selectedSlugs.has(c.api_slug);
                       const scoreColor = c.fit_score >= 80
                         ? 'text-[var(--color-green-indicator)]'
                         : c.fit_score >= 60
                         ? 'text-[var(--color-yellow-indicator)]'
                         : 'text-[var(--color-text-muted)]';
                       return (
-                        <div key={c.api_slug} className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-bg)]/40 transition-colors">
-                          <div className={`w-10 text-center font-bold font-mono text-sm shrink-0 ${scoreColor}`}>
+                        <div
+                          key={c.api_slug}
+                          className={`flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer ${
+                            isSelected ? 'bg-[var(--color-primary)]/5' : 'hover:bg-[var(--color-bg)]/40'
+                          }`}
+                          onClick={() => setSelectedSlugs(prev => {
+                            const n = new Set(prev);
+                            isSelected ? n.delete(c.api_slug) : n.add(c.api_slug);
+                            return n;
+                          })}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            className="shrink-0 w-4 h-4 accent-[var(--color-primary)] cursor-pointer"
+                          />
+                          <div className={`w-8 text-center font-bold font-mono text-sm shrink-0 ${scoreColor}`}>
                             {c.fit_score}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -870,7 +911,7 @@ export default function ScannerPage() {
                             )}
                           </div>
                           <button
-                            onClick={() => handleAddDiscovered(c)}
+                            onClick={e => { e.stopPropagation(); handleAddDiscovered(c); }}
                             disabled={addingSlug === c.api_slug}
                             className="shrink-0 inline-flex items-center gap-1 text-xs font-mono px-2.5 py-1.5 rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
                           >

@@ -197,6 +197,93 @@ const DEFAULT_COMPANIES = [
   { name: 'Watershed',             api_type: 'lever',         api_slug: 'watershed' },
   { name: 'Cribl',                 api_type: 'lever',         api_slug: 'cribl' },
   { name: 'CoreWeave',             api_type: 'lever',         api_slug: 'coreweave' },
+  { name: 'GitLab',                api_type: 'lever',         api_slug: 'gitlab' },
+  { name: 'Canva',                 api_type: 'lever',         api_slug: 'canva' },
+  { name: 'Chainalysis',           api_type: 'lever',         api_slug: 'chainalysis' },
+  { name: 'Honeycomb',             api_type: 'lever',         api_slug: 'honeycombio' },
+  { name: 'Aircall',               api_type: 'lever',         api_slug: 'aircall' },
+  { name: 'Contentsquare',         api_type: 'lever',         api_slug: 'contentsquare' },
+  { name: 'Dataiku',               api_type: 'lever',         api_slug: 'dataiku' },
+  { name: 'Spendesk',              api_type: 'lever',         api_slug: 'spendesk' },
+  { name: 'ngrok',                 api_type: 'lever',         api_slug: 'ngrok' },
+  { name: 'Mattermost',            api_type: 'lever',         api_slug: 'mattermost' },
+  { name: 'Payfit',                api_type: 'lever',         api_slug: 'payfit' },
+  { name: 'Wrike',                 api_type: 'lever',         api_slug: 'wrike' },
+  { name: 'Swile',                 api_type: 'lever',         api_slug: 'swile' },
+  { name: 'Algolia',               api_type: 'lever',         api_slug: 'algolia' },
+  { name: 'Pennylane',             api_type: 'lever',         api_slug: 'pennylane' },
+  // ── Ashby (additional) ────────────────────────────────────────────────────
+  { name: 'Vanta',                 api_type: 'ashby',         api_slug: 'vanta' },
+  { name: 'Statsig',               api_type: 'ashby',         api_slug: 'statsig' },
+  { name: 'Render',                api_type: 'ashby',         api_slug: 'render' },
+  { name: 'Resend',                api_type: 'ashby',         api_slug: 'resend' },
+  { name: 'Luma AI',               api_type: 'ashby',         api_slug: 'lumalabs' },
+  { name: 'Braintrust',            api_type: 'ashby',         api_slug: 'braintrust' },
+  // ── Greenhouse EU (additional) ────────────────────────────────────────────
+  { name: 'Framer',                api_type: 'greenhouse_eu', api_slug: 'framer' },
+  { name: 'Checkout.com',          api_type: 'greenhouse_eu', api_slug: 'checkout' },
+  { name: 'Mollie',                api_type: 'greenhouse_eu', api_slug: 'mollie' },
+  { name: 'Typeform',              api_type: 'greenhouse_eu', api_slug: 'typeform' },
+  { name: 'Pitch',                 api_type: 'greenhouse_eu', api_slug: 'pitch' },
+  { name: 'Oyster HR',             api_type: 'greenhouse_eu', api_slug: 'oysterhr' },
+  { name: 'Sennder',               api_type: 'greenhouse_eu', api_slug: 'sennder' },
+  { name: 'Staffbase',             api_type: 'greenhouse_eu', api_slug: 'staffbase' },
+  // ── Greenhouse US (additional) ────────────────────────────────────────────
+  // Dev tools & monitoring
+  { name: 'Sentry',                api_type: 'greenhouse',    api_slug: 'getsentry' },
+  { name: 'Buildkite',             api_type: 'greenhouse',    api_slug: 'buildkite' },
+  { name: 'Netlify',               api_type: 'greenhouse',    api_slug: 'netlify' },
+  { name: 'JFrog',                 api_type: 'greenhouse',    api_slug: 'jfrog' },
+  { name: 'CircleCI',              api_type: 'greenhouse',    api_slug: 'circleci' },
+  // Cybersecurity / Compliance
+  { name: 'Rapid7',                api_type: 'greenhouse',    api_slug: 'rapid7' },
+  { name: 'Illumio',               api_type: 'greenhouse',    api_slug: 'illumio' },
+  { name: 'Tanium',                api_type: 'greenhouse',    api_slug: 'tanium' },
+  { name: 'Drata',                 api_type: 'greenhouse',    api_slug: 'drata' },
+  // Data / Analytics / Sales
+  { name: 'mParticle',             api_type: 'greenhouse',    api_slug: 'mparticle' },
+  { name: 'Pendo',                 api_type: 'greenhouse',    api_slug: 'pendo' },
+  { name: 'Iterable',              api_type: 'greenhouse',    api_slug: 'iterable' },
+  { name: 'Heap',                  api_type: 'greenhouse',    api_slug: 'heap' },
+  { name: 'Clearbit',              api_type: 'greenhouse',    api_slug: 'clearbit' },
+  { name: '6sense',                api_type: 'greenhouse',    api_slug: '6sense' },
+  { name: 'Seismic',               api_type: 'greenhouse',    api_slug: 'seismic' },
+  { name: 'ActiveCampaign',        api_type: 'greenhouse',    api_slug: 'activecampaign' },
+  { name: 'UserTesting',           api_type: 'greenhouse',    api_slug: 'usertesting' },
+  { name: 'FullStory',             api_type: 'greenhouse',    api_slug: 'fullstory' },
+  { name: 'Clari',                 api_type: 'greenhouse',    api_slug: 'clari' },
+  { name: 'Salesloft',             api_type: 'greenhouse',    api_slug: 'salesloft' },
+  { name: 'Bombora',               api_type: 'greenhouse',    api_slug: 'bombora' },
+  // Databases / Infrastructure
+  { name: 'CockroachDB',           api_type: 'greenhouse',    api_slug: 'cockroachdb' },
+  // Fintech / Insurtech
+  { name: 'SoFi',                  api_type: 'greenhouse',    api_slug: 'sofi' },
+  { name: 'Blend',                 api_type: 'greenhouse',    api_slug: 'blend' },
+  { name: 'Coalition',             api_type: 'greenhouse',    api_slug: 'coalitioninc' },
+  { name: 'EarnIn',                api_type: 'greenhouse',    api_slug: 'earnin' },
+  // Healthcare
+  { name: 'Headway',               api_type: 'greenhouse',    api_slug: 'headwayhq' },
+  { name: 'Clover Health',         api_type: 'greenhouse',    api_slug: 'cloverhealth' },
+  { name: 'Color Health',          api_type: 'greenhouse',    api_slug: 'color' },
+  { name: 'Spring Health',         api_type: 'greenhouse',    api_slug: 'springhealth' },
+  { name: 'Hims & Hers',           api_type: 'greenhouse',    api_slug: 'hims' },
+  // Deep tech / Space
+  { name: 'Relativity Space',      api_type: 'greenhouse',    api_slug: 'relativity' },
+  { name: 'Planet Labs',           api_type: 'greenhouse',    api_slug: 'planet' },
+  { name: 'Motive',                api_type: 'greenhouse',    api_slug: 'gomotive' },
+  // SaaS / Marketplace / HR
+  { name: 'Smartsheet',            api_type: 'greenhouse',    api_slug: 'smartsheet' },
+  { name: 'Convoy',                api_type: 'greenhouse',    api_slug: 'convoy' },
+  { name: 'Andela',                api_type: 'greenhouse',    api_slug: 'andela' },
+  { name: 'Sendbird',              api_type: 'greenhouse',    api_slug: 'sendbird' },
+  { name: 'Lob',                   api_type: 'greenhouse',    api_slug: 'lob' },
+  { name: 'Gem',                   api_type: 'greenhouse',    api_slug: 'gem' },
+  { name: 'Phenom',                api_type: 'greenhouse',    api_slug: 'phenom' },
+  { name: 'Guru',                  api_type: 'greenhouse',    api_slug: 'getguru' },
+  { name: 'TaskUs',                api_type: 'greenhouse',    api_slug: 'taskus' },
+  { name: 'Better.com',            api_type: 'greenhouse',    api_slug: 'better' },
+  { name: 'Opendoor',              api_type: 'greenhouse',    api_slug: 'opendoor' },
+  { name: '10x Genomics',          api_type: 'greenhouse',    api_slug: '10xgenomics' },
 ];
 
 const DEFAULT_KEYWORDS_POSITIVE = [
@@ -881,16 +968,24 @@ Return ONLY the JSON array. No markdown, no explanation.`;
       ranked = [];
     }
 
-    // Normalise and re-filter (Claude might re-include existing slugs)
+    // Build a lookup of the Exa-parsed candidates to constrain Claude's output
+    // — this prevents hallucinated or invalid slugs from entering the watchlist
+    const parsedLookup = new Map(
+      toRank.map(c => [`${c.api_type}:${c.api_slug.toLowerCase()}`, c])
+    );
+    const ALLOWED_API_TYPES = new Set(['greenhouse', 'greenhouse_eu', 'ashby', 'lever']);
+
     const normalised = ranked
       .filter(c => c && c.slug && c.api_type && c.name)
-      .filter(c => !existingSlugs.has(c.slug.toLowerCase()))
+      .filter(c => ALLOWED_API_TYPES.has(String(c.api_type)))
+      .filter(c => parsedLookup.has(`${String(c.api_type)}:${String(c.slug).toLowerCase()}`))
+      .filter(c => !existingSlugs.has(String(c.slug).toLowerCase()))
       .map(c => ({
-        name: String(c.name),
+        name: String(c.name).slice(0, 100),
         api_type: String(c.api_type),
-        api_slug: String(c.slug),
+        api_slug: String(c.slug).slice(0, 80),
         fit_score: Math.min(100, Math.max(0, Number(c.fit_score) || 50)),
-        fit_reason: String(c.fit_reason || ''),
+        fit_reason: String(c.fit_reason || '').slice(0, 300),
       }))
       .sort((a, b) => b.fit_score - a.fit_score)
       .slice(0, 30);
