@@ -12,15 +12,16 @@ const pdfParse = require('pdf-parse');
  * @returns {{ text: string }}
  */
 export async function parseResume(buffer, mimetype, originalname) {
-  const ext = (originalname || '').toLowerCase().split('.').pop();
+  const filename = originalname || 'resume';
+  const ext = filename.toLowerCase().split('.').pop();
 
   if (mimetype === 'text/plain' || ext === 'txt') {
-    return { text: buffer.toString('utf-8') };
+    return { text: buffer.toString('utf-8'), filename };
   }
 
   if (mimetype === 'application/pdf' || ext === 'pdf') {
     const data = await pdfParse(buffer);
-    return { text: data.text || '' };
+    return { text: data.text || '', filename };
   }
 
   if (
@@ -30,7 +31,7 @@ export async function parseResume(buffer, mimetype, originalname) {
     ext === 'doc'
   ) {
     const result = await mammoth.extractRawText({ buffer });
-    return { text: result.value || '' };
+    return { text: result.value || '', filename };
   }
 
   throw new Error(`Unsupported file type: ${mimetype || ext}. Please upload PDF, DOCX, or TXT.`);

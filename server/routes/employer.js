@@ -358,6 +358,11 @@ router.patch('/jobs/:id/candidates/:cid', async (req, res) => {
                  match_score, status,
                  evaluation_json->>'recommendation' AS recommendation,
                  evaluation_json->>'summary' AS summary,
+                 evaluation_json->'strengths' AS strengths,
+                 evaluation_json->'gaps' AS gaps,
+                 evaluation_json->>'seniority' AS seniority,
+                 evaluation_json->>'comp_low' AS comp_low,
+                 evaluation_json->>'comp_high' AS comp_high,
                  created_at`,
       [status || null, req.params.cid, req.params.id]
     );

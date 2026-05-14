@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { updateCandidateStatus } from '../../api';
 import type { EmployerCandidate } from '../../api';
-import { ChevronUp, ChevronDown, Mail, Phone, Building2 } from 'lucide-react';
+import { ChevronUp, ChevronDown, Mail, Phone, Building2, ExternalLink } from 'lucide-react';
 
 const CANDIDATE_STATUSES = ['Evaluated', 'Interviewing', 'Offer', 'Hired', 'Rejected'] as const;
 
@@ -132,6 +133,7 @@ export default function CandidateTable({ jobId, candidates, onCandidatesChange }
             <th className="px-4 py-3 text-left font-mono text-xs text-[var(--color-text-muted)] uppercase">Current Employer</th>
             <th className="px-4 py-3 text-left font-mono text-xs text-[var(--color-text-muted)] uppercase">Contact</th>
             <th className="px-4 py-3 text-left font-mono text-xs text-[var(--color-text-muted)] uppercase">Status</th>
+            <th className="px-4 py-3 text-left font-mono text-xs text-[var(--color-text-muted)] uppercase">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -204,6 +206,15 @@ export default function CandidateTable({ jobId, candidates, onCandidatesChange }
                     <option key={s} value={s} className="bg-[#1a1a2e] text-white">{s}</option>
                   ))}
                 </select>
+              </td>
+              <td className="px-4 py-3">
+                <Link
+                  to={`/employer/jobs/${jobId}/candidates/${c.id}`}
+                  className="inline-flex items-center gap-1 text-xs font-mono px-2.5 py-1.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)]/40 hover:text-[var(--color-accent)] transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Profile
+                </Link>
               </td>
             </tr>
           ))}
