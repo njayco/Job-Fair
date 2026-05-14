@@ -304,15 +304,16 @@ const DEFAULT_KEYWORDS_NEGATIVE = [
 // ── API URL builders ──────────────────────────────────────────────────────────
 
 function buildApiUrl(api_type, api_slug) {
+  const slug = encodeURIComponent(api_slug);
   switch (api_type) {
     case 'greenhouse':
-      return `https://boards-api.greenhouse.io/v1/boards/${api_slug}/jobs`;
+      return `https://boards-api.greenhouse.io/v1/boards/${slug}/jobs`;
     case 'greenhouse_eu':
-      return `https://boards-api.eu.greenhouse.io/v1/boards/${api_slug}/jobs`;
+      return `https://boards-api.eu.greenhouse.io/v1/boards/${slug}/jobs`;
     case 'ashby':
-      return `https://api.ashbyhq.com/posting-api/job-board/${api_slug}/jobPostings`;
+      return `https://api.ashbyhq.com/posting-api/job-board/${slug}/jobPostings`;
     case 'lever':
-      return `https://api.lever.co/v0/postings/${api_slug}?mode=json`;
+      return `https://api.lever.co/v0/postings/${slug}?mode=json`;
     default:
       return null;
   }
@@ -693,6 +694,10 @@ router.post('/run', async (req, res) => {
         const globalScore = evaluation.score?.global;
         const keywords = evaluation.keywords || [];
 
+        const safeKeywords = Array.isArray(keywords)
+          ? keywords.map(String)
+          : (typeof keywords === 'string' ? keywords.split(',').map(s => s.trim()).filter(Boolean) : []);
+
         const { rows: appRows } = await pool.query(
           `INSERT INTO applications
              (user_id, company, role, score, status, url, report_md,
@@ -710,8 +715,8 @@ router.post('/run', async (req, res) => {
             evaluation.block_a?.tldr || null,
             evaluation.block_a?.remote || null,
             evaluation.score?.comp !== undefined ? parseFloat(evaluation.score.comp) : null,
-            keywords.length > 0 ? keywords : null,
-            JSON.stringify(evaluation),
+            safeKeywords.length > 0 ? safeKeywords : null,
+            evaluation,
           ]
         );
 
@@ -729,7 +734,7 @@ router.post('/run', async (req, res) => {
           };
         }
       } catch (evalErr) {
-        console.error(`Scanner eval error for ${job.title} @ ${job.company}:`, evalErr.message);
+        console.error(`Scanner eval error for ${job.title} @ ${job.company}:`, evalErr.stack || evalErr.message);
         // Non-fatal — continue with remaining jobs
       }
     }
@@ -750,7 +755,7 @@ router.post('/run', async (req, res) => {
         evaluated,
         startedAt,
         finishedAt,
-        JSON.stringify(results),
+        results,
       ]
     );
     const run = runRows[0];
@@ -769,7 +774,7 @@ router.post('/run', async (req, res) => {
       cv_missing: !canEvaluate,
     });
   } catch (err) {
-    console.error('scanner/run error:', err);
+    console.error('scanner/run error:', err.stack || err);
     res.status(500).json({ error: err.message });
   }
 });

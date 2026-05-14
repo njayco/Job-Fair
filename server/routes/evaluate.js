@@ -34,7 +34,10 @@ router.post('/', async (req, res) => {
     const reportMd = await generateReportMarkdown(evaluation);
 
     const globalScore = evaluation.score?.global;
-    const keywords = evaluation.keywords || [];
+    const rawKeywords = evaluation.keywords || [];
+    const keywords = Array.isArray(rawKeywords)
+      ? rawKeywords.map(String)
+      : (typeof rawKeywords === 'string' ? rawKeywords.split(',').map(s => s.trim()).filter(Boolean) : []);
 
     const appResult = await pool.query(
       `INSERT INTO applications
@@ -55,7 +58,7 @@ router.post('/', async (req, res) => {
         evaluation.block_a?.remote || null,
         evaluation.score?.comp !== undefined ? parseFloat(evaluation.score.comp) : null,
         keywords.length > 0 ? keywords : null,
-        JSON.stringify(evaluation),
+        evaluation,
       ]
     );
 
@@ -87,7 +90,7 @@ router.post('/', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('POST /api/evaluate error:', err);
+    console.error('POST /api/evaluate error:', err.stack || err);
 
     if (err.message?.includes('Failed to parse')) {
       return res.status(500).json({
