@@ -415,6 +415,38 @@ export default function EmployerCandidateProfilePage() {
           </Section>
         ) : null}
 
+        {/* Strengths & Gaps — always visible when present */}
+        {((evalJson?.strengths?.length ?? 0) > 0 || (evalJson?.gaps?.length ?? 0) > 0) && (
+          <div className="grid sm:grid-cols-2 gap-4">
+            {(evalJson?.strengths?.length ?? 0) > 0 && (
+              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 space-y-3">
+                <p className="text-xs font-mono font-bold uppercase tracking-widest text-emerald-400">Strengths</p>
+                <ul className="space-y-2">
+                  {evalJson!.strengths!.map((s, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(evalJson?.gaps?.length ?? 0) > 0 && (
+              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 space-y-3">
+                <p className="text-xs font-mono font-bold uppercase tracking-widest text-red-400">Gaps</p>
+                <ul className="space-y-2">
+                  {evalJson!.gaps!.map((g, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                      {g}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* F — Interview Strategy */}
         {(evalJson?.interview_strategy?.focus_areas?.length || evalJson?.interview_strategy?.red_flags?.length) ? (
           <Section icon={MessageSquare} label="Interview Strategy" tag="F">
