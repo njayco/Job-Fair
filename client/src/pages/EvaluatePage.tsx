@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { evaluate } from '../api';
@@ -48,6 +48,7 @@ function useProgress(active: boolean) {
 
 export default function EvaluatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [cvContent, setCvContent] = useState('');
   const [jobUrl, setJobUrl] = useState('');
   const [jobDesc, setJobDesc] = useState('');
@@ -60,6 +61,15 @@ export default function EvaluatePage() {
   useEffect(() => {
     const savedCv = localStorage.getItem('career_ops_cv');
     if (savedCv) setCvContent(savedCv);
+
+    // Pre-populate from Job Finder "Evaluate Fit" navigation
+    const state = location.state as { jobDescription?: string; jobUrl?: string } | null;
+    if (state?.jobDescription) {
+      setJobDesc(state.jobDescription);
+    }
+    if (state?.jobUrl) {
+      setJobUrl(state.jobUrl);
+    }
   }, []);
 
   const handleCvChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

@@ -370,6 +370,77 @@ export async function getCareerMatch(id: number): Promise<CareerMatchResult> {
   return { id: row.id, created_at: row.created_at, ...row.result_json };
 }
 
+// Job Finder
+export interface JobFinderPreferences {
+  location?: string;
+  work_style?: 'remote' | 'hybrid' | 'on-site' | '';
+  salary_min?: number | '';
+  salary_max?: number | '';
+  focus_area?: string;
+}
+
+export interface JobFinderResult {
+  index: number;
+  role: string;
+  company: string;
+  url: string;
+  location: string;
+  remote_ok: boolean;
+  match_pct: number;
+  why_match: string[];
+  skill_gaps: string[];
+  comp_low: number | null;
+  comp_high: number | null;
+  description: string;
+}
+
+export interface JobFinderRun {
+  id: number;
+  created_at: string;
+  preferences: JobFinderPreferences;
+  results: JobFinderResult[];
+}
+
+export interface JobFinderHistoryItem {
+  id: number;
+  top_role: string | null;
+  top_pct: number | null;
+  result_count: number;
+  preferences: JobFinderPreferences;
+  created_at: string;
+}
+
+export async function findJobs(params: {
+  preferences: JobFinderPreferences;
+  cv_content?: string;
+}): Promise<JobFinderRun> {
+  const res = await fetch('/api/job-finder', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(params.cv_content
+      ? { preferences: params.preferences, cv_content: params.cv_content }
+      : { preferences: params.preferences }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw Object.assign(new Error(data.error || 'Job search failed'), { code: data.code });
+  }
+  return data;
+}
+
+export async function getJobFinderHistory(): Promise<{ history: JobFinderHistoryItem[] }> {
+  const res = await fetch('/api/job-finder/history', { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to fetch history');
+  return res.json();
+}
+
+export async function getJobFinderRun(id: number): Promise<JobFinderRun> {
+  const res = await fetch(`/api/job-finder/${id}`, { credentials: 'include' });
+  if (!res.ok) throw new Error('Run not found');
+  return res.json();
+}
+
 // Helpers
 export const APP_STATUSES: AppStatus[] = [
   'Evaluated', 'Applied', 'Responded', 'Interview',

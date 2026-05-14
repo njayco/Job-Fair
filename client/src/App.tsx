@@ -11,6 +11,7 @@ import PipelinePage from './pages/PipelinePage';
 import ReportPage from './pages/ReportPage';
 import DonatePage from './pages/DonatePage';
 import CareerMatchPage from './pages/CareerMatchPage';
+import JobFinderPage from './pages/JobFinderPage';
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
           <Route path="/report/:id" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
           <Route path="/account" element={<ProtectedRoute><AccountPage /></ProtectedRoute>} />
           <Route path="/career-match" element={<ProtectedRoute><CareerMatchPage /></ProtectedRoute>} />
+          <Route path="/job-finder" element={<ProtectedRoute><JobFinderPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
