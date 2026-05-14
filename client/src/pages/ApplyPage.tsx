@@ -5,12 +5,13 @@ import { Button } from '../components/ui/button';
 import {
   getApplication, prepareApply, fillApply,
   generateTailoredResumePdf, downloadBlob,
+  getApplyAttempts, getApplyAttempt,
 } from '../api';
-import type { Application, FormField, ApplyPrepareResponse } from '../api';
+import type { Application, FormField, ApplyPrepareResponse, ApplyAttempt } from '../api';
 import {
   Send, ChevronLeft, ExternalLink, AlertCircle, CheckCircle, Copy, Check,
   Sparkles, FileText, Info, ClipboardList, ShieldAlert, Download, FileDown,
-  Mail, BookOpen,
+  Mail, BookOpen, History, RotateCcw,
 } from 'lucide-react';
 
 // ── Step indicator ─────────────────────────────────────────────────────────────
@@ -481,6 +482,11 @@ export default function ApplyPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
+  const [attempts, setAttempts] = useState<ApplyAttempt[]>([]);
+  const [attemptsLoading, setAttemptsLoading] = useState(false);
+  const [loadingAttemptId, setLoadingAttemptId] = useState<number | null>(null);
+
+  // Load application
   useEffect(() => {
     if (!appId) { setAppError('Invalid application ID'); setAppLoading(false); return; }
     getApplication(appId)
@@ -488,6 +494,45 @@ export default function ApplyPage() {
       .catch(e => setAppError(e.message || 'Application not found'))
       .finally(() => setAppLoading(false));
   }, [appId]);
+
+  // Load previous attempts
+  useEffect(() => {
+    if (!appId) return;
+    setAttemptsLoading(true);
+    getApplyAttempts(appId)
+      .then(r => setAttempts(r.attempts))
+      .catch(() => setAttempts([]))
+      .finally(() => setAttemptsLoading(false));
+  }, [appId]);
+
+  const handleLoadAttempt = useCallback(async (attempt: ApplyAttempt) => {
+    if (!app) return;
+    setLoadingAttemptId(attempt.id);
+    try {
+      const detail = await getApplyAttempt(appId, attempt.id);
+      const loadedFields: FormField[] = Array.isArray(detail.fields_json) ? detail.fields_json : [];
+      setDraft({
+        attempt_id: detail.id,
+        application_id: appId,
+        url: detail.url,
+        company: detail.company,
+        role: detail.role,
+        fields: loadedFields,
+        detection_type: 'loaded',
+        detection_error: null,
+        tailored_resume: detail.tailored_resume || '',
+        cover_letter: detail.cover_letter || '',
+        created_at: detail.created_at,
+      });
+      setFields(loadedFields);
+      setPrepareError('');
+      setStep(3);
+    } catch (e) {
+      setPrepareError(e instanceof Error ? e.message : 'Failed to load previous attempt');
+    } finally {
+      setLoadingAttemptId(null);
+    }
+  }, [appId, app]);
 
   const handleLaunch = useCallback(async () => {
     if (!appId) return;
@@ -663,6 +708,68 @@ export default function ApplyPage() {
                   No application URL saved. Add one on the{' '}
                   <Link to="/pipeline" className="underline">Pipeline page</Link> first.
                 </p>
+              </div>
+            )}
+
+            {/* Previous attempts */}
+            {(attemptsLoading || attempts.length > 0) && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <History className="w-4 h-4 text-[var(--color-text-muted)]" />
+                  <h3 className="text-sm font-semibold font-mono text-[var(--color-text-muted)] uppercase tracking-wide">
+                    Previous Sessions
+                  </h3>
+                </div>
+                {attemptsLoading ? (
+                  <p className="text-xs text-[var(--color-text-muted)] animate-pulse font-mono">Loading history…</p>
+                ) : (
+                  <div className="space-y-2">
+                    {attempts.map(attempt => (
+                      <div
+                        key={attempt.id}
+                        className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl px-4 py-3 flex items-center justify-between gap-4"
+                      >
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border ${
+                              attempt.status === 'filled'
+                                ? 'text-[var(--color-green-indicator)] border-[var(--color-green-indicator)]/30 bg-[var(--color-green-indicator)]/5'
+                                : 'text-[var(--color-text-muted)] border-[var(--color-border)] bg-[var(--color-bg)]'
+                            }`}>
+                              {attempt.status.toUpperCase()}
+                            </span>
+                            <span className="text-xs text-[var(--color-text-muted)] font-mono">
+                              {attempt.field_count} field{attempt.field_count !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {new Date(attempt.created_at).toLocaleDateString(undefined, {
+                              month: 'short', day: 'numeric', year: 'numeric',
+                              hour: '2-digit', minute: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleLoadAttempt(attempt)}
+                          disabled={loadingAttemptId === attempt.id}
+                          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
+                        >
+                          {loadingAttemptId === attempt.id ? (
+                            <>
+                              <div className="w-3 h-3 border border-[var(--color-primary)]/30 border-t-[var(--color-primary)] rounded-full animate-spin" />
+                              LOADING…
+                            </>
+                          ) : (
+                            <>
+                              <RotateCcw className="w-3 h-3" />
+                              LOAD
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

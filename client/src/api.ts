@@ -893,7 +893,7 @@ export interface ApplyPrepareResponse {
   company: string;
   role: string;
   fields: FormField[];
-  detection_type: 'detected' | 'fallback' | 'jina';
+  detection_type: 'detected' | 'fallback' | 'jina' | 'loaded';
   detection_error:
     | 'AUTH_WALL' | 'TIMEOUT' | 'FETCH_ERROR' | 'JS_REQUIRED' | 'NO_FORM'
     | 'NOT_FOUND' | 'RATE_LIMITED' | 'SERVER_ERROR'
@@ -911,6 +911,51 @@ export interface ApplyFillResponse {
   application_id: number;
   url: string;
   status: string;
+}
+
+export interface ApplyAttempt {
+  id: number;
+  status: string;
+  field_count: number;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface ApplyAttemptsResponse {
+  attempts: ApplyAttempt[];
+}
+
+export interface ApplyAttemptDetail {
+  id: number;
+  user_id: number;
+  application_id: number;
+  url: string;
+  fields_json: FormField[];
+  status: string;
+  created_at: string;
+  updated_at: string | null;
+  company: string;
+  role: string;
+  tailored_resume: string | null;
+  cover_letter: string | null;
+}
+
+export async function getApplyAttempts(application_id: number): Promise<ApplyAttemptsResponse> {
+  const res = await fetch(`/api/apply/attempts/${application_id}`, {
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch attempts');
+  return data;
+}
+
+export async function getApplyAttempt(application_id: number, attempt_id: number): Promise<ApplyAttemptDetail> {
+  const res = await fetch(`/api/apply/attempts/${application_id}/${attempt_id}`, {
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch attempt');
+  return data;
 }
 
 export async function prepareApply(application_id: number): Promise<ApplyPrepareResponse> {
