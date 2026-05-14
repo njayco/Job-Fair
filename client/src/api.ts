@@ -510,6 +510,11 @@ export interface EmployerCandidate {
   status: string;
   recommendation: string | null;
   summary: string | null;
+  strengths: string[] | null;
+  gaps: string[] | null;
+  seniority: string | null;
+  comp_low: string | null;
+  comp_high: string | null;
   created_at: string;
 }
 
@@ -548,6 +553,64 @@ export async function deleteEmployerJob(id: number): Promise<{ ok: boolean }> {
   if (!res.ok) throw new Error(data.error || 'Failed to delete job');
   return data;
 }
+
+export async function uploadCandidates(
+  jobId: number,
+  files: File[]
+): Promise<{ uploaded: number; candidates: EmployerCandidate[]; errors: { filename: string; error: string }[] }> {
+  const fd = new FormData();
+  files.forEach(f => fd.append('resumes', f));
+  const res = await fetch(`/api/employer/jobs/${jobId}/candidates/upload`, {
+    method: 'POST',
+    credentials: 'include',
+    body: fd,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Upload failed');
+  return data;
+}
+
+export async function evaluateCandidates(
+  jobId: number
+): Promise<{ evaluated: number; candidates: EmployerCandidate[] }> {
+  const res = await fetch(`/api/employer/jobs/${jobId}/evaluate`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Evaluation failed');
+  return data;
+}
+
+export async function getJobCandidates(
+  jobId: number
+): Promise<{ candidates: EmployerCandidate[] }> {
+  const res = await fetch(`/api/employer/jobs/${jobId}/candidates`, {
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch candidates');
+  return data;
+}
+
+export async function updateCandidateStatus(
+  jobId: number,
+  candidateId: number,
+  status: string
+): Promise<EmployerCandidate> {
+  const res = await fetch(`/api/employer/jobs/${jobId}/candidates/${candidateId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ status }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update status');
+  return data;
+}
+
+export type CandidateStatus = 'Uploaded' | 'Evaluated' | 'Interviewing' | 'Offer' | 'Hired' | 'Rejected';
+export const CANDIDATE_STATUSES: CandidateStatus[] = ['Evaluated', 'Interviewing', 'Offer', 'Hired', 'Rejected'];
 
 // Helpers
 export const APP_STATUSES: AppStatus[] = [

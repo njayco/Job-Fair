@@ -1,9 +1,12 @@
 import { Router } from 'express';
+import multer from 'multer';
 import pool from '../db.js';
+import { parseResume, extractContactInfo } from '../lib/resumeParser.js';
+import { anthropicClient, MODEL } from '../lib/evaluation.js';
 
 const router = Router();
 
-// Enforce employer-only access on all routes in this file
+// ── Role guard ───────────────────────────────────────────────────────────────
 router.use((req, res, next) => {
   if (req.user?.account_type !== 'employer') {
     return res.status(403).json({ error: 'Employer account required.' });
@@ -11,7 +14,29 @@ router.use((req, res, next) => {
   next();
 });
 
-// GET /api/employer/jobs — list this employer's jobs (most recent first)
+// Multer: memory storage, max 10 MB per file, max 20 files
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 20 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/plain',
+    ];
+    const ext = file.originalname.toLowerCase().split('.').pop();
+    if (allowed.includes(file.mimetype) || ['pdf','docx','doc','txt'].includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Unsupported file type: ${file.originalname}`));
+    }
+  },
+});
+
+// ── Job CRUD ─────────────────────────────────────────────────────────────────
+
+// GET /api/employer/jobs
 router.get('/jobs', async (req, res) => {
   try {
     const result = await pool.query(
@@ -32,12 +57,12 @@ router.get('/jobs', async (req, res) => {
   }
 });
 
-// POST /api/employer/jobs — create a new job
+// POST /api/employer/jobs
 router.post('/jobs', async (req, res) => {
   try {
     const { title, description_text } = req.body;
     if (!description_text || description_text.trim().length < 20) {
-      return res.status(400).json({ error: 'Job description is required.' });
+      return res.status(400).json({ error: 'Job description is required (min 20 characters).' });
     }
     const result = await pool.query(
       `INSERT INTO employer_jobs (user_id, title, description_text)
@@ -52,7 +77,7 @@ router.post('/jobs', async (req, res) => {
   }
 });
 
-// GET /api/employer/jobs/:id — get one job with its candidates
+// GET /api/employer/jobs/:id
 router.get('/jobs/:id', async (req, res) => {
   try {
     const jobResult = await pool.query(
@@ -63,8 +88,15 @@ router.get('/jobs/:id', async (req, res) => {
 
     const candidatesResult = await pool.query(
       `SELECT id, filename, parsed_name, parsed_email, parsed_phone, parsed_employer,
-              match_score, status, evaluation_json->>'recommendation' AS recommendation,
-              evaluation_json->>'summary' AS summary, created_at
+              match_score, status,
+              evaluation_json->>'recommendation' AS recommendation,
+              evaluation_json->>'summary' AS summary,
+              evaluation_json->'strengths' AS strengths,
+              evaluation_json->'gaps' AS gaps,
+              evaluation_json->>'seniority' AS seniority,
+              evaluation_json->>'comp_low' AS comp_low,
+              evaluation_json->>'comp_high' AS comp_high,
+              created_at
        FROM employer_candidates
        WHERE job_id = $1
        ORDER BY match_score DESC NULLS LAST, created_at ASC`,
@@ -78,7 +110,7 @@ router.get('/jobs/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/employer/jobs/:id — delete job and its candidates
+// DELETE /api/employer/jobs/:id
 router.delete('/jobs/:id', async (req, res) => {
   try {
     const result = await pool.query(
@@ -90,6 +122,250 @@ router.delete('/jobs/:id', async (req, res) => {
   } catch (err) {
     console.error('DELETE /api/employer/jobs/:id error:', err);
     res.status(500).json({ error: 'Failed to delete job.' });
+  }
+});
+
+// ── Candidate endpoints ───────────────────────────────────────────────────────
+
+// GET /api/employer/jobs/:id/candidates
+router.get('/jobs/:id/candidates', async (req, res) => {
+  try {
+    const jobCheck = await pool.query(
+      'SELECT id FROM employer_jobs WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!jobCheck.rows.length) return res.status(404).json({ error: 'Job not found.' });
+
+    const result = await pool.query(
+      `SELECT id, filename, parsed_name, parsed_email, parsed_phone, parsed_employer,
+              match_score, status,
+              evaluation_json->>'recommendation' AS recommendation,
+              evaluation_json->>'summary' AS summary,
+              evaluation_json->'strengths' AS strengths,
+              evaluation_json->'gaps' AS gaps,
+              evaluation_json->>'seniority' AS seniority,
+              evaluation_json->>'comp_low' AS comp_low,
+              evaluation_json->>'comp_high' AS comp_high,
+              created_at
+       FROM employer_candidates
+       WHERE job_id = $1
+       ORDER BY match_score DESC NULLS LAST, created_at ASC`,
+      [req.params.id]
+    );
+    res.json({ candidates: result.rows });
+  } catch (err) {
+    console.error('GET /api/employer/jobs/:id/candidates error:', err);
+    res.status(500).json({ error: 'Failed to fetch candidates.' });
+  }
+});
+
+// POST /api/employer/jobs/:id/candidates/upload
+router.post('/jobs/:id/candidates/upload', upload.array('resumes', 20), async (req, res) => {
+  try {
+    const jobResult = await pool.query(
+      'SELECT id FROM employer_jobs WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!jobResult.rows.length) return res.status(404).json({ error: 'Job not found.' });
+
+    const files = req.files || [];
+    if (!files.length) return res.status(400).json({ error: 'No files uploaded.' });
+
+    const inserted = [];
+    const errors = [];
+
+    for (const file of files) {
+      try {
+        const { text } = await parseResume(file.buffer, file.mimetype, file.originalname);
+        const contact = extractContactInfo(text);
+
+        const row = await pool.query(
+          `INSERT INTO employer_candidates
+             (job_id, filename, resume_text, parsed_name, parsed_email, parsed_phone, status)
+           VALUES ($1, $2, $3, $4, $5, $6, 'Uploaded')
+           ON CONFLICT DO NOTHING
+           RETURNING id, filename, parsed_name, parsed_email, parsed_phone, status, created_at`,
+          [req.params.id, file.originalname, text, contact.parsed_name, contact.parsed_email, contact.parsed_phone]
+        );
+        if (row.rows.length) inserted.push(row.rows[0]);
+      } catch (fileErr) {
+        errors.push({ filename: file.originalname, error: fileErr.message });
+      }
+    }
+
+    res.json({ uploaded: inserted.length, candidates: inserted, errors });
+  } catch (err) {
+    console.error('POST /api/employer/jobs/:id/candidates/upload error:', err);
+    res.status(500).json({ error: 'Upload failed.' });
+  }
+});
+
+// POST /api/employer/jobs/:id/evaluate
+router.post('/jobs/:id/evaluate', async (req, res) => {
+  try {
+    const jobResult = await pool.query(
+      'SELECT id, title, description_text FROM employer_jobs WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!jobResult.rows.length) return res.status(404).json({ error: 'Job not found.' });
+    const job = jobResult.rows[0];
+
+    const candidateRows = await pool.query(
+      `SELECT id, filename, parsed_name, resume_text
+       FROM employer_candidates
+       WHERE job_id = $1 AND status = 'Uploaded'
+       ORDER BY created_at ASC
+       LIMIT 20`,
+      [req.params.id]
+    );
+    const candidates = candidateRows.rows;
+
+    if (!candidates.length) {
+      return res.status(400).json({ error: 'No uploaded candidates to evaluate.' });
+    }
+
+    // Build batch prompt
+    const candidateBlocks = candidates.map((c, i) =>
+      `--- CANDIDATE ${i + 1} ---\nFilename: ${c.filename}\nName hint: ${c.parsed_name || 'Unknown'}\n\nRESUME TEXT:\n${(c.resume_text || '').slice(0, 4000)}`
+    ).join('\n\n');
+
+    const prompt = `You are an expert technical recruiter. Score each candidate resume against the job description below.
+
+JOB TITLE: ${job.title}
+
+JOB DESCRIPTION:
+${job.description_text}
+
+CANDIDATES (${candidates.length} total):
+${candidateBlocks}
+
+Return a valid JSON array of exactly ${candidates.length} objects, one per candidate in order:
+[
+  {
+    "index": 1,
+    "name": "full name or best guess from resume",
+    "email": "extracted email or null",
+    "phone": "extracted phone or null",
+    "current_employer": "most recent employer or null",
+    "match_score": 0-100,
+    "strengths": ["3 specific bullets about why they fit this role"],
+    "gaps": ["1-2 honest gaps vs the JD"],
+    "seniority": "junior|mid|senior|principal",
+    "comp_low": annual USD integer or null,
+    "comp_high": annual USD integer or null,
+    "recommendation": "Strong Hire|Hire|Consider|Weak Match|Do Not Proceed",
+    "summary": "2-3 sentence executive overview of this candidate vs the role"
+  }
+]
+
+Respond with ONLY the JSON array, no markdown fences, no commentary.`;
+
+    const message = await anthropicClient.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const raw = message.content[0]?.text || '';
+    const jsonText = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
+    let scores;
+    try {
+      scores = JSON.parse(jsonText);
+    } catch {
+      console.error('Claude returned invalid JSON:', raw.slice(0, 500));
+      return res.status(502).json({ error: 'AI returned invalid response. Please try again.' });
+    }
+
+    if (!Array.isArray(scores) || scores.length !== candidates.length) {
+      return res.status(502).json({ error: 'AI returned unexpected structure. Please try again.' });
+    }
+
+    // Update each candidate in DB
+    const updatedCandidates = [];
+    for (let i = 0; i < candidates.length; i++) {
+      const s = scores[i];
+      const evalJson = {
+        recommendation: s.recommendation,
+        summary: s.summary,
+        strengths: s.strengths,
+        gaps: s.gaps,
+        seniority: s.seniority,
+        comp_low: s.comp_low,
+        comp_high: s.comp_high,
+      };
+      const row = await pool.query(
+        `UPDATE employer_candidates
+         SET match_score = $1,
+             parsed_name = COALESCE(NULLIF($2,''), parsed_name),
+             parsed_email = COALESCE(NULLIF($3,''), parsed_email),
+             parsed_phone = COALESCE(NULLIF($4,''), parsed_phone),
+             parsed_employer = $5,
+             evaluation_json = $6,
+             status = 'Evaluated'
+         WHERE id = $7
+         RETURNING id, filename, parsed_name, parsed_email, parsed_phone, parsed_employer,
+                   match_score, status,
+                   evaluation_json->>'recommendation' AS recommendation,
+                   evaluation_json->>'summary' AS summary,
+                   evaluation_json->'strengths' AS strengths,
+                   evaluation_json->'gaps' AS gaps,
+                   evaluation_json->>'seniority' AS seniority,
+                   evaluation_json->>'comp_low' AS comp_low,
+                   evaluation_json->>'comp_high' AS comp_high,
+                   created_at`,
+        [
+          s.match_score ?? null,
+          s.name ?? null,
+          s.email ?? null,
+          s.phone ?? null,
+          s.current_employer ?? null,
+          JSON.stringify(evalJson),
+          candidates[i].id,
+        ]
+      );
+      if (row.rows.length) updatedCandidates.push(row.rows[0]);
+    }
+
+    // Return sorted by score desc
+    updatedCandidates.sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0));
+    res.json({ evaluated: updatedCandidates.length, candidates: updatedCandidates });
+  } catch (err) {
+    console.error('POST /api/employer/jobs/:id/evaluate error:', err);
+    res.status(500).json({ error: 'Evaluation failed: ' + err.message });
+  }
+});
+
+// PATCH /api/employer/jobs/:id/candidates/:cid
+router.patch('/jobs/:id/candidates/:cid', async (req, res) => {
+  try {
+    const jobCheck = await pool.query(
+      'SELECT id FROM employer_jobs WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.user.id]
+    );
+    if (!jobCheck.rows.length) return res.status(404).json({ error: 'Job not found.' });
+
+    const { status } = req.body;
+    const VALID_STATUSES = ['Uploaded', 'Evaluated', 'Interviewing', 'Offer', 'Hired', 'Rejected'];
+    if (status && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}` });
+    }
+
+    const result = await pool.query(
+      `UPDATE employer_candidates
+       SET status = COALESCE($1, status)
+       WHERE id = $2 AND job_id = $3
+       RETURNING id, filename, parsed_name, parsed_email, parsed_phone, parsed_employer,
+                 match_score, status,
+                 evaluation_json->>'recommendation' AS recommendation,
+                 evaluation_json->>'summary' AS summary,
+                 created_at`,
+      [status || null, req.params.cid, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Candidate not found.' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('PATCH /api/employer/jobs/:id/candidates/:cid error:', err);
+    res.status(500).json({ error: 'Failed to update candidate.' });
   }
 });
 
