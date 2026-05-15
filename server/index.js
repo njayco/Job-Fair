@@ -45,11 +45,20 @@ app.use((req, res, next) => {
 });
 
 // Page-view analytics — fire-and-forget INSERT for every non-API GET request
+// Only the referrer *domain* is stored (never full URL) for privacy.
 app.use((req, res, next) => {
   if (req.method === 'GET' && !req.path.startsWith('/api/') && !req.path.startsWith('/assets/')) {
-    const referrer = (req.headers.referer || req.headers.referrer || '').slice(0, 500);
+    const raw = req.headers.referer || req.headers.referrer || '';
+    let referrerDomain = '';
+    if (raw) {
+      try {
+        referrerDomain = new URL(raw).hostname;
+      } catch {
+        referrerDomain = '';
+      }
+    }
     const path = req.path.slice(0, 500);
-    pool.query('INSERT INTO page_views (path, referrer) VALUES ($1, $2)', [path, referrer])
+    pool.query('INSERT INTO page_views (path, referrer) VALUES ($1, $2)', [path, referrerDomain.slice(0, 500)])
       .catch(() => {});
   }
   next();
