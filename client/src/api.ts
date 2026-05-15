@@ -462,6 +462,27 @@ export async function getJobFinderRun(id: number): Promise<JobFinderRun> {
   return res.json();
 }
 
+export interface GreenhouseSearchParams {
+  query: string;
+  location?: string;
+  work_style?: 'remote' | 'hybrid' | 'on-site' | '';
+  cv_content?: string;
+}
+
+export async function findGreenhouseJobs(params: GreenhouseSearchParams): Promise<JobFinderRun> {
+  const res = await fetch('/api/greenhouse-jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(params),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw Object.assign(new Error(data.error || 'Greenhouse search failed'), { code: data.code });
+  }
+  return data;
+}
+
 // Saved Jobs
 export interface SavedJob {
   id: number;

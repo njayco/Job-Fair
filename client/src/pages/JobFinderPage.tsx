@@ -3,14 +3,17 @@ import { useNavigate, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import {
-  findJobs, getJobFinderHistory, getJobFinderRun, getCv, getSavedJobs, saveJob, deleteSavedJob, getApplications,
+  findJobs, findGreenhouseJobs, getJobFinderHistory, getJobFinderRun, getCv,
+  getSavedJobs, saveJob, deleteSavedJob, getApplications, createApplication,
 } from '../api';
 import type { JobFinderRun, JobFinderResult, JobFinderHistoryItem, JobFinderPreferences } from '../api';
 import {
   Search, AlertCircle, Clock, FileText, ExternalLink,
   CheckCircle, XCircle, TrendingUp, ChevronRight, RotateCcw, Bookmark, BookmarkCheck,
-  Send, X,
+  Send, X, Leaf,
 } from 'lucide-react';
+
+type SearchTab = 'exa' | 'greenhouse';
 
 function MatchBadge({ pct }: { pct: number }) {
   const color =
@@ -39,22 +42,28 @@ function JobCard({
   job,
   onEvaluate,
   onEvaluateAndApply,
+  onAssistedApply,
   savedJobId,
   onSave,
   onUnsave,
   showApplyPrompt,
   applyAppId,
   onDismissPrompt,
+  isGreenhouse,
+  assistedApplyLoading,
 }: {
   job: JobFinderResult;
   onEvaluate: (job: JobFinderResult) => void;
   onEvaluateAndApply: (job: JobFinderResult) => void;
+  onAssistedApply?: (job: JobFinderResult) => void;
   savedJobId?: number;
   onSave: (job: JobFinderResult) => void;
   onUnsave: (savedId: number) => void;
   showApplyPrompt?: boolean;
   applyAppId?: number | null;
   onDismissPrompt?: () => void;
+  isGreenhouse?: boolean;
+  assistedApplyLoading?: boolean;
 }) {
   const isSaved = savedJobId !== undefined;
 
@@ -73,6 +82,12 @@ function JobCard({
                 {job.remote_ok && (
                   <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-[var(--color-green-indicator)]/10 text-[var(--color-green-indicator)] border border-[var(--color-green-indicator)]/20">
                     Remote OK
+                  </span>
+                )}
+                {isGreenhouse && (
+                  <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                    <Leaf className="w-3 h-3" />
+                    Greenhouse
                   </span>
                 )}
                 <CompRange low={job.comp_low} high={job.comp_high} />
@@ -140,7 +155,7 @@ function JobCard({
           >
             {isSaved
               ? <><BookmarkCheck className="w-3.5 h-3.5" />Saved</>
-              : <><Bookmark className="w-3.5 h-3.5" />Save Job</>}
+              : <><Bookmark className="w-3.5 h-3.5" />Save</>}
           </button>
           <Button
             variant="outline"
@@ -150,6 +165,16 @@ function JobCard({
             Evaluate Fit
             <ChevronRight className="w-3 h-3" />
           </Button>
+          {isGreenhouse && onAssistedApply && (
+            <button
+              onClick={() => onAssistedApply(job)}
+              disabled={assistedApplyLoading}
+              className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 transition-colors"
+            >
+              <Send className="w-3 h-3" />
+              {assistedApplyLoading ? 'Preparing…' : 'Assisted Apply'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -205,6 +230,7 @@ const WORK_STYLES = [
 export default function JobFinderPage() {
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab] = useState<SearchTab>('greenhouse');
   const [run, setRun] = useState<JobFinderRun | null>(null);
   const [history, setHistory] = useState<JobFinderHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -212,11 +238,11 @@ export default function JobFinderPage() {
   const [error, setError] = useState('');
   const [noCV, setNoCV] = useState(false);
   const [cvText, setCvText] = useState('');
-  // savedMap: key = "role|||company|||url", value = saved_job id
   const [savedMap, setSavedMap] = useState<Map<string, number>>(new Map());
-  // prompt shown after saving a job: the job key + resolved application ID (if one exists already)
   const [applyPrompt, setApplyPrompt] = useState<{ key: string; appId: number | null } | null>(null);
+  const [assistedApplyLoadingKey, setAssistedApplyLoadingKey] = useState<string | null>(null);
 
+  // Exa preferences
   const [prefs, setPrefs] = useState<JobFinderPreferences>({
     location: '',
     work_style: '',
@@ -224,6 +250,11 @@ export default function JobFinderPage() {
     salary_max: '',
     focus_area: '',
   });
+
+  // Greenhouse search fields
+  const [ghQuery, setGhQuery] = useState('');
+  const [ghLocation, setGhLocation] = useState('');
+  const [ghWorkStyle, setGhWorkStyle] = useState<'' | 'remote' | 'hybrid' | 'on-site'>('');
 
   function jobKey(job: { role: string; company: string; url: string }) {
     return `${job.role}|||${job.company}|||${job.url}`;
@@ -253,7 +284,7 @@ export default function JobFinderPage() {
     setPrefs(p => ({ ...p, [key]: val }));
   };
 
-  const handleSearch = async () => {
+  const handleExaSearch = async () => {
     const cvToSend = cvText.trim();
     if (cvToSend.length < 50) {
       setError('Please paste your resume before searching.');
@@ -285,6 +316,49 @@ export default function JobFinderPage() {
     }
   };
 
+  const handleGreenhouseSearch = async () => {
+    if (!ghQuery.trim()) {
+      setError('Please enter a role or keyword to search Greenhouse.');
+      return;
+    }
+    const cvToSend = cvText.trim();
+    if (cvToSend.length < 50) {
+      setError('Please paste your resume before searching.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const result = await findGreenhouseJobs({
+        query: ghQuery.trim(),
+        location: ghLocation.trim() || undefined,
+        work_style: ghWorkStyle || undefined,
+        cv_content: cvToSend,
+      });
+      setRun(result);
+      setNoCV(false);
+      const newEntry: JobFinderHistoryItem = {
+        id: result.id,
+        top_role: result.results[0]?.role ?? null,
+        top_pct: result.results[0]?.match_pct ?? null,
+        result_count: result.results.length,
+        preferences: result.preferences,
+        created_at: result.created_at,
+      };
+      setHistory(prev => [newEntry, ...prev.filter(h => h.id !== result.id)]);
+      setTimeout(() => {
+        document.getElementById('job-finder-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+    } catch (e: unknown) {
+      const err = e as Error & { code?: string };
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = activeTab === 'greenhouse' ? handleGreenhouseSearch : handleExaSearch;
+
   const handleLoadHistory = async (id: number) => {
     setLoading(true);
     setError('');
@@ -312,14 +386,11 @@ export default function JobFinderPage() {
       });
       setSavedMap(prev => new Map(prev).set(jobKey(job), saved.id));
 
-      // Check if the user has already evaluated this job (an application with this URL exists).
-      // Normalize URLs (strip trailing slash + query string) for reliable matching.
       const normalizeUrl = (u: string) => u.replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase();
       const jobUrlNorm = normalizeUrl(job.url);
 
       let resolvedAppId: number | null = null;
       try {
-        // Fetch up to 500 applications to minimize false-negatives for large pipelines
         const appsRes = await getApplications({ limit: 500 });
         const match = appsRes.applications.find(
           a => a.url &&
@@ -347,6 +418,46 @@ export default function JobFinderPage() {
       });
     } catch (e) {
       console.error('Failed to unsave job:', e);
+    }
+  };
+
+  // Greenhouse "Assisted Apply": create an application row (or find existing) and go straight to /apply/:id
+  const handleAssistedApply = async (job: JobFinderResult) => {
+    const key = jobKey(job);
+    setAssistedApplyLoadingKey(key);
+    try {
+      const normalizeUrl = (u: string) => u.replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase();
+      const jobUrlNorm = normalizeUrl(job.url);
+
+      // Check for an existing application for this URL
+      let appId: number | null = null;
+      try {
+        const appsRes = await getApplications({ limit: 500 });
+        const existing = appsRes.applications.find(
+          a => a.url && normalizeUrl(a.url) === jobUrlNorm
+        );
+        appId = existing?.id ?? null;
+      } catch {
+        // continue — we'll create a new one
+      }
+
+      // Create a new application if none exists
+      if (!appId) {
+        const created = await createApplication({
+          company: job.company,
+          role: job.role,
+          url: job.url,
+          status: 'Evaluated',
+        });
+        appId = created.id;
+      }
+
+      navigate(`/apply/${appId}`);
+    } catch (e) {
+      console.error('Assisted Apply failed:', e);
+      setError('Could not start Assisted Apply. Please try again.');
+    } finally {
+      setAssistedApplyLoadingKey(null);
     }
   };
 
@@ -389,6 +500,8 @@ export default function JobFinderPage() {
     });
   };
 
+  const isGreenhouseResults = run?.results.some((r: JobFinderResult & { source?: string }) => r.source === 'greenhouse') ?? false;
+
   return (
     <Layout>
       <div className="max-w-5xl mx-auto space-y-8">
@@ -400,8 +513,34 @@ export default function JobFinderPage() {
             <h1 className="text-3xl font-bold font-mono tracking-tight">Job Finder</h1>
           </div>
           <p className="text-[var(--color-text-muted)] max-w-2xl">
-            Searches Greenhouse, Lever, Wellfound, and other job boards for real, current openings — then uses AI to score each one against your resume and rank them by fit.
+            Find real, current job openings and let AI score each one against your resume.
           </p>
+        </div>
+
+        {/* Source tabs */}
+        <div className="flex gap-1 p-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl w-fit">
+          <button
+            onClick={() => { setActiveTab('greenhouse'); setRun(null); setError(''); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono transition-colors ${
+              activeTab === 'greenhouse'
+                ? 'bg-emerald-600 text-white'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            <Leaf className="w-4 h-4" />
+            Greenhouse
+          </button>
+          <button
+            onClick={() => { setActiveTab('exa'); setRun(null); setError(''); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono transition-colors ${
+              activeTab === 'exa'
+                ? 'bg-[var(--color-primary)] text-white'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
+            }`}
+          >
+            <Search className="w-4 h-4" />
+            Web Search
+          </button>
         </div>
 
         {/* CV input */}
@@ -427,78 +566,140 @@ export default function JobFinderPage() {
           />
         </div>
 
-        {/* Preferences */}
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-5">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-[var(--color-primary)]" />
-            <span className="text-sm font-bold font-mono uppercase text-[var(--color-text)]">Search Preferences</span>
-            <span className="text-xs text-[var(--color-text-muted)] font-mono ml-1">· all optional</span>
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-5">
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Location</label>
-              <input
-                type="text"
-                value={prefs.location}
-                onChange={e => setPref('location', e.target.value)}
-                placeholder="e.g. New York, London, anywhere"
-                className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-colors"
-              />
+        {/* ── Greenhouse search form ── */}
+        {activeTab === 'greenhouse' && (
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <Leaf className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm font-bold font-mono uppercase text-[var(--color-text)]">Greenhouse Search</span>
+              <span className="text-xs text-[var(--color-text-muted)] font-mono ml-1">· searches 80+ company boards</span>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Work Style</label>
-              <div className="flex gap-2">
-                {WORK_STYLES.map(s => (
-                  <button
-                    key={s.value}
-                    onClick={() => setPref('work_style', s.value as JobFinderPreferences['work_style'])}
-                    className={`flex-1 py-2 text-xs font-mono rounded-lg border transition-colors ${
-                      prefs.work_style === s.value
-                        ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
-                        : 'bg-[var(--color-bg)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:border-[var(--color-primary)]/50'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
+            <div className="grid sm:grid-cols-2 gap-5">
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Role / Keyword <span className="text-[var(--color-accent)]">*</span></label>
+                <input
+                  type="text"
+                  value={ghQuery}
+                  onChange={e => setGhQuery(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  placeholder="e.g. Product Manager, Senior Engineer, Data Scientist"
+                  className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Location (optional)</label>
+                <input
+                  type="text"
+                  value={ghLocation}
+                  onChange={e => setGhLocation(e.target.value)}
+                  placeholder="e.g. New York, London, San Francisco"
+                  className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Work Style</label>
+                <div className="flex gap-2">
+                  {WORK_STYLES.map(s => (
+                    <button
+                      key={s.value}
+                      onClick={() => setGhWorkStyle(s.value as '' | 'remote' | 'hybrid' | 'on-site')}
+                      className={`flex-1 py-2 text-xs font-mono rounded-lg border transition-colors ${
+                        ghWorkStyle === s.value
+                          ? 'bg-emerald-600 text-white border-emerald-600'
+                          : 'bg-[var(--color-bg)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:border-emerald-500/50'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Target Salary (USD thousands/year)</label>
-              <div className="flex items-center gap-2">
+            <p className="text-xs text-[var(--color-text-muted)] font-mono">
+              Results come directly from Greenhouse ATS boards — every link goes straight to the official application page.
+              Click <strong className="text-emerald-400">Assisted Apply</strong> to skip straight to the AI-powered apply flow.
+            </p>
+          </div>
+        )}
+
+        {/* ── Exa / Web Search form ── */}
+        {activeTab === 'exa' && (
+          <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-[var(--color-primary)]" />
+              <span className="text-sm font-bold font-mono uppercase text-[var(--color-text)]">Web Search Preferences</span>
+              <span className="text-xs text-[var(--color-text-muted)] font-mono ml-1">· all optional</span>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Location</label>
                 <input
-                  type="number"
-                  value={prefs.salary_min}
-                  onChange={e => setPref('salary_min', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="Min e.g. 80"
+                  type="text"
+                  value={prefs.location}
+                  onChange={e => setPref('location', e.target.value)}
+                  placeholder="e.g. New York, London, anywhere"
                   className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-colors"
                 />
-                <span className="text-[var(--color-text-muted)] shrink-0">–</span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Work Style</label>
+                <div className="flex gap-2">
+                  {WORK_STYLES.map(s => (
+                    <button
+                      key={s.value}
+                      onClick={() => setPref('work_style', s.value as JobFinderPreferences['work_style'])}
+                      className={`flex-1 py-2 text-xs font-mono rounded-lg border transition-colors ${
+                        prefs.work_style === s.value
+                          ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
+                          : 'bg-[var(--color-bg)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:border-[var(--color-primary)]/50'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Target Salary (USD thousands/year)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={prefs.salary_min}
+                    onChange={e => setPref('salary_min', e.target.value ? Number(e.target.value) : '')}
+                    placeholder="Min e.g. 80"
+                    className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-colors"
+                  />
+                  <span className="text-[var(--color-text-muted)] shrink-0">–</span>
+                  <input
+                    type="number"
+                    value={prefs.salary_max}
+                    onChange={e => setPref('salary_max', e.target.value ? Number(e.target.value) : '')}
+                    placeholder="Max e.g. 150"
+                    className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Focus Area</label>
                 <input
-                  type="number"
-                  value={prefs.salary_max}
-                  onChange={e => setPref('salary_max', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="Max e.g. 150"
+                  type="text"
+                  value={prefs.focus_area}
+                  onChange={e => setPref('focus_area', e.target.value)}
+                  placeholder="e.g. Product Management, AI, EdTech"
                   className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-colors"
                 />
               </div>
             </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-mono uppercase text-[var(--color-text-muted)]">Focus Area</label>
-              <input
-                type="text"
-                value={prefs.focus_area}
-                onChange={e => setPref('focus_area', e.target.value)}
-                placeholder="e.g. Product Management, AI, EdTech"
-                className="w-full bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-colors"
-              />
-            </div>
           </div>
-        </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -514,10 +715,13 @@ export default function JobFinderPage() {
             onClick={handleSearch}
             disabled={loading}
             variant="primary"
-            className="gap-2 font-mono"
+            className={`gap-2 font-mono ${activeTab === 'greenhouse' ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-600' : ''}`}
           >
-            <Search className="w-4 h-4" />
-            {loading ? 'SEARCHING & SCORING JOBS...' : run ? 'SEARCH AGAIN' : 'FIND JOBS'}
+            {activeTab === 'greenhouse' ? <Leaf className="w-4 h-4" /> : <Search className="w-4 h-4" />}
+            {loading
+              ? (activeTab === 'greenhouse' ? 'SEARCHING GREENHOUSE BOARDS…' : 'SEARCHING & SCORING JOBS...')
+              : run ? 'SEARCH AGAIN' : (activeTab === 'greenhouse' ? 'SEARCH GREENHOUSE' : 'FIND JOBS')
+            }
           </Button>
           {run && (
             <button
@@ -562,14 +766,35 @@ export default function JobFinderPage() {
         {/* Loading */}
         {loading && (
           <div className="py-16 text-center space-y-3">
-            <Search className="w-8 h-8 text-[var(--color-primary)] mx-auto animate-pulse" />
-            <p className="font-mono text-[var(--color-text-muted)] animate-pulse">Searching job boards and scoring matches…</p>
+            {activeTab === 'greenhouse'
+              ? <Leaf className="w-8 h-8 text-emerald-400 mx-auto animate-pulse" />
+              : <Search className="w-8 h-8 text-[var(--color-primary)] mx-auto animate-pulse" />
+            }
+            <p className="font-mono text-[var(--color-text-muted)] animate-pulse">
+              {activeTab === 'greenhouse'
+                ? 'Scanning Greenhouse boards and scoring matches…'
+                : 'Searching job boards and scoring matches…'
+              }
+            </p>
             <p className="text-xs text-[var(--color-text-muted)]">This usually takes 20–40 seconds</p>
           </div>
         )}
 
         {/* Results */}
-        {run && !loading && (
+        {run && !loading && run.results.length === 0 && (
+          <div className="py-16 text-center space-y-3">
+            <Search className="w-8 h-8 text-[var(--color-text-muted)] mx-auto" />
+            <p className="font-mono text-[var(--color-text-muted)]">No matching jobs found.</p>
+            <p className="text-sm text-[var(--color-text-muted)] max-w-sm mx-auto">
+              {isGreenhouseResults
+                ? 'Try broader keywords, a different location, or remove the work-style filter.'
+                : 'Try adjusting your preferences or running Career Matching first.'
+              }
+            </p>
+          </div>
+        )}
+
+        {run && !loading && run.results.length > 0 && (
           <div id="job-finder-results" className="space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold font-mono uppercase text-[var(--color-primary)]">
@@ -584,25 +809,33 @@ export default function JobFinderPage() {
               {run.results.map((job, i) => {
                 const key = jobKey(job);
                 const savedId = savedMap.get(key);
+                const jobWithSource = job as JobFinderResult & { source?: string };
+                const isGh = jobWithSource.source === 'greenhouse' || isGreenhouseResults;
                 return (
                   <JobCard
                     key={i}
                     job={job}
                     onEvaluate={handleEvaluate}
                     onEvaluateAndApply={handleEvaluateAndApply}
+                    onAssistedApply={isGh ? handleAssistedApply : undefined}
                     savedJobId={savedId}
                     onSave={handleSave}
                     onUnsave={(sid) => handleUnsave(sid, job)}
                     showApplyPrompt={applyPrompt?.key === key}
                     applyAppId={applyPrompt?.key === key ? applyPrompt.appId : null}
                     onDismissPrompt={() => setApplyPrompt(null)}
+                    isGreenhouse={isGh}
+                    assistedApplyLoading={assistedApplyLoadingKey === key}
                   />
                 );
               })}
             </div>
 
             <div className="p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs text-[var(--color-text-muted)] font-mono">
-              Jobs sourced from Greenhouse, Lever, Wellfound and other boards via Exa · Scored against your resume by AI · Click "Evaluate Fit" to run a full analysis and add to your pipeline
+              {isGreenhouseResults
+                ? 'Jobs sourced directly from Greenhouse ATS boards · Scored against your resume by AI · Click "Assisted Apply" to jump straight into the AI-powered apply flow'
+                : 'Jobs sourced from Greenhouse, Lever, Wellfound and other boards via Exa · Scored against your resume by AI · Click "Evaluate Fit" to run a full analysis and add to your pipeline'
+              }
             </div>
           </div>
         )}
