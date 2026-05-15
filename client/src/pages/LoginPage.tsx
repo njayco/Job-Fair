@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const defaultRedirect = (u: typeof user) =>
-    u?.account_type === 'employer' ? '/employer' : '/pipeline';
+    u?.is_admin ? '/admin' : u?.account_type === 'employer' ? '/employer' : '/pipeline';
 
   useEffect(() => {
     if (user) navigate(locationFrom || defaultRedirect(user), { replace: true });

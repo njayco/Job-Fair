@@ -1,4 +1,4 @@
-modules = ["go-1.21", "nodejs-20", "bash", "web", "postgresql-16", "python-3.11"]
+modules = ["go-1.21", "nodejs-20", "bash", "web", "python-3.11", "postgresql-16"]
 [agent]
 expertMode = true
 integrations = ["javascript_anthropic_ai_integrations:2.0.0", "stripe:1.0.0", "github:1.0.0"]
