@@ -203,6 +203,7 @@ export default function ScannerPage() {
   const [companies, setCompanies] = useState<ScannerCompany[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(true);
   const [companySearch, setCompanySearch] = useState('');
+  const [industryFilter, setIndustryFilter] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newCompany, setNewCompany] = useState({ name: '', api_type: 'greenhouse' as ScannerApiType, api_slug: '' });
   const [addError, setAddError] = useState('');
@@ -509,13 +510,16 @@ export default function ScannerPage() {
 
   // ── Derived ───────────────────────────────────────────────────────────────
 
-  const filteredCompanies = companySearch
-    ? companies.filter(c =>
-        c.name.toLowerCase().includes(companySearch.toLowerCase()) ||
-        c.api_slug.toLowerCase().includes(companySearch.toLowerCase()) ||
-        (c.industry ?? '').toLowerCase().includes(companySearch.toLowerCase())
-      )
-    : companies;
+  const filteredCompanies = companies.filter(c => {
+    const search = companySearch.toLowerCase();
+    const matchesSearch = !companySearch || (
+      c.name.toLowerCase().includes(search) ||
+      c.api_slug.toLowerCase().includes(search) ||
+      (c.industry ?? '').toLowerCase().includes(search)
+    );
+    const matchesIndustry = !industryFilter || (c.industry ?? '') === industryFilter;
+    return matchesSearch && matchesIndustry;
+  });
 
   const enabledCount = companies.filter(c => c.enabled).length;
   const lastRun = runs[0];
@@ -663,7 +667,7 @@ export default function ScannerPage() {
             {([
               { key: 'results',   icon: Radar,      label: 'Results' },
               { key: 'runs',      icon: Clock,      label: `Runs (${runs.length})` },
-              { key: 'companies', icon: Building2,  label: `Companies (${enabledCount}/${companies.length})` },
+              { key: 'companies', icon: Building2,  label: industryFilter || companySearch ? `Companies (${filteredCompanies.length} of ${companies.length})` : `Companies (${enabledCount}/${companies.length})` },
               { key: 'keywords',  icon: Tags,       label: 'Keywords' },
             ] as const).map(t => (
               <button
@@ -884,6 +888,14 @@ export default function ScannerPage() {
                 placeholder="Filter companies…"
                 className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text)] placeholder-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] transition-colors w-56"
               />
+              <select
+                value={industryFilter}
+                onChange={e => setIndustryFilter(e.target.value)}
+                className="text-xs font-mono px-2 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] transition-colors"
+              >
+                <option value="">All industries</option>
+                {VALID_INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+              </select>
               <div className="flex flex-wrap gap-1.5 ml-auto">
                 <button
                   onClick={() => filteredCompanies.filter(c => !c.enabled).forEach(c => handleToggle(c))}
