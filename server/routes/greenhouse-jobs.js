@@ -106,9 +106,21 @@ const GH_BASE = 'https://boards-api.greenhouse.io/v1/boards';
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_BOARDS_PER_SEARCH = 60;
 const MAX_RESULTS_TO_SCORE = 15;
+const BOARD_CACHE_TTL_MS = process.env.GREENHOUSE_BOARD_CACHE_TTL_MS
+  ? Number(process.env.GREENHOUSE_BOARD_CACHE_TTL_MS)
+  : 10 * 60 * 1000; // default 10 minutes
 
-// Fetch all jobs for a single board token
+// In-memory cache: token → { jobs: Array, expiresAt: number }
+const boardCache = new Map();
+
+// Fetch all jobs for a single board token (with TTL cache)
 async function fetchBoardJobs(token, companyName) {
+  const now = Date.now();
+  const cached = boardCache.get(token);
+  if (cached && cached.expiresAt > now) {
+    return cached.jobs;
+  }
+
   try {
     const res = await fetch(`${GH_BASE}/${token}/jobs?content=true`, {
       headers: { 'Accept': 'application/json' },
@@ -116,7 +128,7 @@ async function fetchBoardJobs(token, companyName) {
     });
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.jobs || []).map(job => ({
+    const jobs = (data.jobs || []).map(job => ({
       id: String(job.id),
       token,
       company: companyName,
@@ -127,6 +139,8 @@ async function fetchBoardJobs(token, companyName) {
       updated_at: job.updated_at || '',
       departments: (job.departments || []).map(d => d.name).filter(Boolean),
     }));
+    boardCache.set(token, { jobs, expiresAt: now + BOARD_CACHE_TTL_MS });
+    return jobs;
   } catch {
     return [];
   }
