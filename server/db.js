@@ -198,6 +198,41 @@ const SCHEMA_SQL = `
   ALTER TABLE apply_attempts ADD COLUMN IF NOT EXISTS tailored_resume TEXT;
   ALTER TABLE apply_attempts ADD COLUMN IF NOT EXISTS cover_letter TEXT;
 
+  ALTER TABLE scanner_companies ADD COLUMN IF NOT EXISTS industry VARCHAR(100);
+  UPDATE scanner_companies SET industry = 'Technology' WHERE industry IS NULL;
+
+  -- Remove legacy slug-only unique constraint if it exists, replace with (user_id, api_type, api_slug)
+  DO $$ BEGIN
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'scanner_companies_user_api_slug_unique'
+    ) THEN
+      ALTER TABLE scanner_companies
+        DROP CONSTRAINT scanner_companies_user_api_slug_unique;
+    END IF;
+  END $$;
+
+  -- Remove duplicates on (user_id, api_type, api_slug) before adding new constraint
+  DELETE FROM scanner_companies sc1
+  USING scanner_companies sc2
+  WHERE sc1.user_id    = sc2.user_id
+    AND sc1.api_type   = sc2.api_type
+    AND sc1.api_slug   = sc2.api_slug
+    AND sc1.id > sc2.id;
+
+  DO $$ BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'scanner_companies_user_ats_slug_unique'
+    ) THEN
+      ALTER TABLE scanner_companies
+        ADD CONSTRAINT scanner_companies_user_ats_slug_unique
+        UNIQUE (user_id, api_type, api_slug);
+    END IF;
+  END $$;
+
+  UPDATE scanner_companies SET api_slug = lower(api_slug) WHERE api_slug != lower(api_slug);
+
   DROP TRIGGER IF EXISTS update_apply_attempts_updated_at ON apply_attempts;
   CREATE TRIGGER update_apply_attempts_updated_at
     BEFORE UPDATE ON apply_attempts

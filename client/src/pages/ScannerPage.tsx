@@ -5,7 +5,8 @@ import { Button } from '../components/ui/button';
 import {
   getScannerCompanies, addScannerCompany, updateScannerCompany, deleteScannerCompany,
   getScannerConfig, updateScannerConfig, runScanner, getScannerRuns, getScannerRun,
-  resetScannerHistory, getCv, discoverScannerCompanies, createApplication,
+  resetScannerHistory, getCv, discoverScannerCompanies, discoverCompaniesByIndustry,
+  createApplication,
 } from '../api';
 import type {
   ScannerCompany, ScannerJobResult, ScannerRun, ScannerRunSummary, ScannerApiType,
@@ -230,6 +231,39 @@ export default function ScannerPage() {
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [bulkAdding, setBulkAdding] = useState(false);
   const [addedCount, setAddedCount] = useState<number | null>(null);
+
+  // Industry discovery
+  const VALID_INDUSTRIES = [
+    'Technology', 'Fintech', 'Healthcare & Life Sciences', 'Finance & Banking',
+    'Retail & E-Commerce', 'Media & Entertainment', 'Education & EdTech',
+    'Logistics & Supply Chain', 'HR Tech', 'Real Estate & PropTech',
+    'Consumer Goods', 'Marketing Tech', 'Manufacturing & Industrials',
+    'Gaming & Metaverse', 'Insurance', 'Government Contractors',
+    'Hospitality & Travel', 'Food & Beverage', 'Legal & Professional Services',
+    'Energy & Climate Tech', 'AgriTech', 'Construction & PropTech', 'Non-Profit & NGO',
+  ];
+  const [industryDiscovering, setIndustryDiscovering] = useState(false);
+  const [selectedIndustry, setSelectedIndustry] = useState('Technology');
+  const [industryDiscoverResult, setIndustryDiscoverResult] = useState<{ added: number; industry: string } | null>(null);
+  const [industryDiscoverError, setIndustryDiscoverError] = useState('');
+
+  const handleIndustryDiscover = async () => {
+    setIndustryDiscovering(true);
+    setIndustryDiscoverResult(null);
+    setIndustryDiscoverError('');
+    try {
+      const result = await discoverCompaniesByIndustry({ industry: selectedIndustry, count: 20 });
+      setIndustryDiscoverResult({ added: result.added, industry: result.industry });
+      if (result.added > 0) {
+        const updated = await getScannerCompanies();
+        setCompanies(updated.companies);
+      }
+    } catch (e: unknown) {
+      setIndustryDiscoverError(e instanceof Error ? e.message : 'Discovery failed');
+    } finally {
+      setIndustryDiscovering(false);
+    }
+  };
 
   // Resume / CV
   const [cvContent, setCvContent] = useState('');
@@ -478,7 +512,8 @@ export default function ScannerPage() {
   const filteredCompanies = companySearch
     ? companies.filter(c =>
         c.name.toLowerCase().includes(companySearch.toLowerCase()) ||
-        c.api_slug.toLowerCase().includes(companySearch.toLowerCase())
+        c.api_slug.toLowerCase().includes(companySearch.toLowerCase()) ||
+        (c.industry ?? '').toLowerCase().includes(companySearch.toLowerCase())
       )
     : companies;
 
@@ -860,12 +895,40 @@ export default function ScannerPage() {
                 >Disable All</button>
                 <button
                   onClick={handleDiscover}
-                  disabled={discovering}
+                  disabled={discovering || industryDiscovering}
                   className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--color-yellow-indicator)]/50 text-[var(--color-yellow-indicator)] hover:bg-[var(--color-yellow-indicator)]/5 transition-colors disabled:opacity-50"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   {discovering ? 'Discovering…' : 'Discover with AI'}
                 </button>
+                <div className="flex items-center gap-1">
+                  <select
+                    value={selectedIndustry}
+                    onChange={e => { setSelectedIndustry(e.target.value); setIndustryDiscoverResult(null); setIndustryDiscoverError(''); }}
+                    disabled={industryDiscovering || discovering}
+                    className="text-xs font-mono px-2 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)]/40 disabled:opacity-50"
+                  >
+                    {VALID_INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                  </select>
+                  <button
+                    onClick={handleIndustryDiscover}
+                    disabled={industryDiscovering || discovering}
+                    className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors disabled:opacity-50"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    {industryDiscovering ? 'Discovering…' : 'Discover Industry'}
+                  </button>
+                  {industryDiscoverResult && (
+                    <span className="text-xs font-mono px-2 py-0.5 rounded bg-[var(--color-green-indicator)]/10 text-[var(--color-green-indicator)] border border-[var(--color-green-indicator)]/20">
+                      +{industryDiscoverResult.added} added
+                    </span>
+                  )}
+                  {industryDiscoverError && (
+                    <span className="text-xs font-mono text-[var(--color-accent)] truncate max-w-[160px]" title={industryDiscoverError}>
+                      {industryDiscoverError}
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={() => setShowAddForm(v => !v)}
                   className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg border border-[var(--color-primary)]/40 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 transition-colors"
@@ -1063,11 +1126,16 @@ export default function ScannerPage() {
                       <span className={`w-4 h-4 bg-white rounded-full shadow transition-transform ml-0.5 ${company.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
                     </button>
                     <Globe className="w-4 h-4 text-[var(--color-text-muted)] shrink-0" />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className={`font-medium text-sm ${company.enabled ? 'text-[var(--color-text)]' : 'text-[var(--color-text-muted)]'}`}>
                         {company.name}
                       </span>
-                      <span className="text-xs font-mono text-[var(--color-text-muted)] ml-2">
+                      {company.industry && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-primary)]/8 border border-[var(--color-primary)]/20 text-[var(--color-primary)] whitespace-nowrap">
+                          {company.industry}
+                        </span>
+                      )}
+                      <span className="text-xs font-mono text-[var(--color-text-muted)] whitespace-nowrap">
                         {API_TYPE_LABELS[company.api_type]} · {company.api_slug}
                       </span>
                     </div>

@@ -1,290 +1,12 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { evaluateJob, generateReportMarkdown, anthropicClient, MODEL } from '../lib/evaluation.js';
+import { DEFAULT_COMPANIES } from '../data/companies.js';
+import { VALID_INDUSTRIES } from '../lib/industries.js';
 
 const router = Router();
 
 const MAX_AUTO_EVALS = 20;
-
-// ── Seed data ────────────────────────────────────────────────────────────────
-
-const DEFAULT_COMPANIES = [
-  // ── Greenhouse US ──────────────────────────────────────────────────────────
-  // AI / ML
-  { name: 'Anthropic',             api_type: 'greenhouse',    api_slug: 'anthropic' },
-  { name: 'Hume AI',               api_type: 'greenhouse',    api_slug: 'humeai' },
-  { name: 'Arize AI',              api_type: 'greenhouse',    api_slug: 'arizeai' },
-  { name: 'Glean',                 api_type: 'greenhouse',    api_slug: 'gleanwork' },
-  { name: 'Black Forest Labs',     api_type: 'greenhouse',    api_slug: 'blackforestlabs' },
-  { name: 'Isomorphic Labs',       api_type: 'greenhouse',    api_slug: 'isomorphiclabs' },
-  { name: 'OpenAI',                api_type: 'greenhouse',    api_slug: 'openai' },
-  { name: 'Scale AI',              api_type: 'greenhouse',    api_slug: 'scaleai' },
-  { name: 'Perplexity',            api_type: 'greenhouse',    api_slug: 'perplexity' },
-  { name: 'Character AI',          api_type: 'greenhouse',    api_slug: 'character' },
-  { name: 'Anyscale',              api_type: 'greenhouse',    api_slug: 'anyscale' },
-  { name: 'Runway',                api_type: 'greenhouse',    api_slug: 'runwayml' },
-  { name: 'Together AI',           api_type: 'greenhouse',    api_slug: 'togetherai' },
-  { name: 'Wayve',                 api_type: 'greenhouse',    api_slug: 'wayve' },
-  { name: 'Stability AI',          api_type: 'greenhouse',    api_slug: 'stabilityai' },
-  { name: 'Shield AI',             api_type: 'greenhouse',    api_slug: 'shieldai' },
-  { name: 'Recursion',             api_type: 'greenhouse',    api_slug: 'recursion' },
-  { name: 'Benchling',             api_type: 'greenhouse',    api_slug: 'benchling' },
-  // Cloud Infrastructure & DevOps
-  { name: 'Cloudflare',            api_type: 'greenhouse',    api_slug: 'cloudflare' },
-  { name: 'Datadog',               api_type: 'greenhouse',    api_slug: 'datadoghq' },
-  { name: 'HashiCorp',             api_type: 'greenhouse',    api_slug: 'hashicorp' },
-  { name: 'Harness',               api_type: 'greenhouse',    api_slug: 'harness' },
-  { name: 'PagerDuty',             api_type: 'greenhouse',    api_slug: 'pagerduty' },
-  { name: 'LaunchDarkly',          api_type: 'greenhouse',    api_slug: 'launchdarkly' },
-  { name: 'New Relic',             api_type: 'greenhouse',    api_slug: 'newrelic' },
-  { name: 'Snyk',                  api_type: 'greenhouse',    api_slug: 'snyk' },
-  { name: 'Chronosphere',          api_type: 'greenhouse',    api_slug: 'chronosphere' },
-  { name: 'Samsara',               api_type: 'greenhouse',    api_slug: 'samsara' },
-  { name: 'Vercel',                api_type: 'greenhouse',    api_slug: 'vercel' },
-  { name: 'Temporal',              api_type: 'greenhouse',    api_slug: 'temporal' },
-  { name: 'RunPod',                api_type: 'greenhouse',    api_slug: 'runpod' },
-  { name: 'Replit',                api_type: 'greenhouse',    api_slug: 'replit' },
-  { name: 'Fastly',                api_type: 'greenhouse',    api_slug: 'fastly' },
-  // Cybersecurity
-  { name: 'CrowdStrike',           api_type: 'greenhouse',    api_slug: 'crowdstrike' },
-  { name: 'Zscaler',               api_type: 'greenhouse',    api_slug: 'zscaler' },
-  { name: 'SentinelOne',           api_type: 'greenhouse',    api_slug: 'sentinelone' },
-  { name: 'Abnormal Security',     api_type: 'greenhouse',    api_slug: 'abnormalsecurity' },
-  { name: 'Arctic Wolf',           api_type: 'greenhouse',    api_slug: 'arcticwolf' },
-  { name: 'Lacework',              api_type: 'greenhouse',    api_slug: 'lacework' },
-  { name: 'Orca Security',         api_type: 'greenhouse',    api_slug: 'orcasecurity' },
-  { name: 'Axonius',               api_type: 'greenhouse',    api_slug: 'axonius' },
-  { name: 'Exabeam',               api_type: 'greenhouse',    api_slug: 'exabeam' },
-  { name: 'Hunters',               api_type: 'greenhouse',    api_slug: 'hunters' },
-  { name: 'Cybereason',            api_type: 'greenhouse',    api_slug: 'cybereason' },
-  // Data & Analytics
-  { name: 'Amplitude',             api_type: 'greenhouse',    api_slug: 'amplitude' },
-  { name: 'Braze',                 api_type: 'greenhouse',    api_slug: 'braze' },
-  { name: 'Mixpanel',              api_type: 'greenhouse',    api_slug: 'mixpanel' },
-  { name: 'Confluent',             api_type: 'greenhouse',    api_slug: 'confluent' },
-  { name: 'Gong',                  api_type: 'greenhouse',    api_slug: 'gong' },
-  { name: 'Highspot',              api_type: 'greenhouse',    api_slug: 'highspot' },
-  { name: 'Outreach',              api_type: 'greenhouse',    api_slug: 'outreach' },
-  { name: 'Speechmatics',          api_type: 'greenhouse',    api_slug: 'speechmatics' },
-  // Fintech & Payments
-  { name: 'Stripe',                api_type: 'greenhouse',    api_slug: 'stripe' },
-  { name: 'Brex',                  api_type: 'greenhouse',    api_slug: 'brex' },
-  { name: 'Marqeta',               api_type: 'greenhouse',    api_slug: 'marqeta' },
-  { name: 'Affirm',                api_type: 'greenhouse',    api_slug: 'affirm' },
-  { name: 'Plaid',                 api_type: 'greenhouse',    api_slug: 'plaid' },
-  { name: 'Ramp',                  api_type: 'greenhouse',    api_slug: 'ramp' },
-  { name: 'Chime',                 api_type: 'greenhouse',    api_slug: 'chime' },
-  { name: 'Robinhood',             api_type: 'greenhouse',    api_slug: 'robinhood' },
-  { name: 'Carta',                 api_type: 'greenhouse',    api_slug: 'carta' },
-  { name: 'Mercury',               api_type: 'greenhouse',    api_slug: 'mercury' },
-  { name: 'Gusto',                 api_type: 'greenhouse',    api_slug: 'gusto' },
-  { name: 'Rippling',              api_type: 'greenhouse',    api_slug: 'rippling' },
-  { name: 'Checkr',                api_type: 'greenhouse',    api_slug: 'checkr' },
-  { name: 'Klaviyo',               api_type: 'greenhouse',    api_slug: 'klaviyo' },
-  { name: 'Toast',                 api_type: 'greenhouse',    api_slug: 'toasttab' },
-  { name: 'BILL',                  api_type: 'greenhouse',    api_slug: 'bill-com' },
-  { name: 'Deel',                  api_type: 'greenhouse',    api_slug: 'deel' },
-  { name: 'Remote',                api_type: 'greenhouse',    api_slug: 'remote' },
-  // SaaS & Productivity
-  { name: 'HubSpot',               api_type: 'greenhouse',    api_slug: 'hubspot' },
-  { name: 'Asana',                 api_type: 'greenhouse',    api_slug: 'asana' },
-  { name: 'Notion',                api_type: 'greenhouse',    api_slug: 'notion' },
-  { name: 'monday.com',            api_type: 'greenhouse',    api_slug: 'mondaydotcom' },
-  { name: 'Figma',                 api_type: 'greenhouse',    api_slug: 'figma' },
-  { name: 'Miro',                  api_type: 'greenhouse',    api_slug: 'miro' },
-  { name: 'Loom',                  api_type: 'greenhouse',    api_slug: 'loom' },
-  { name: 'Coda',                  api_type: 'greenhouse',    api_slug: 'codahq' },
-  { name: 'Box',                   api_type: 'greenhouse',    api_slug: 'box' },
-  { name: 'Dropbox',               api_type: 'greenhouse',    api_slug: 'dropbox' },
-  { name: 'Airtable',              api_type: 'greenhouse',    api_slug: 'airtable' },
-  { name: 'Lattice',               api_type: 'greenhouse',    api_slug: 'lattice' },
-  { name: 'Culture Amp',           api_type: 'greenhouse',    api_slug: 'cultureamp' },
-  { name: 'Grammarly',             api_type: 'greenhouse',    api_slug: 'grammarly' },
-  { name: 'Verkada',               api_type: 'greenhouse',    api_slug: 'verkada' },
-  { name: 'Superhuman',            api_type: 'greenhouse',    api_slug: 'superhuman' },
-  { name: 'Front',                 api_type: 'greenhouse',    api_slug: 'front' },
-  { name: 'Attentive',             api_type: 'greenhouse',    api_slug: 'attentive' },
-  { name: 'Procore',               api_type: 'greenhouse',    api_slug: 'procore' },
-  { name: 'Sprinklr',              api_type: 'greenhouse',    api_slug: 'sprinklr' },
-  { name: 'Squarespace',           api_type: 'greenhouse',    api_slug: 'squarespace' },
-  { name: 'BigCommerce',           api_type: 'greenhouse',    api_slug: 'bigcommerce' },
-  { name: 'Discord',               api_type: 'greenhouse',    api_slug: 'discord' },
-  { name: 'Coursera',              api_type: 'greenhouse',    api_slug: 'coursera' },
-  { name: 'Yotpo',                 api_type: 'greenhouse',    api_slug: 'yotpo' },
-  { name: 'Intercom',              api_type: 'greenhouse',    api_slug: 'intercom' },
-  { name: 'Zendesk',               api_type: 'greenhouse',    api_slug: 'zendesk' },
-  { name: 'Celonis',               api_type: 'greenhouse',    api_slug: 'celonis' },
-  { name: 'Contentful',            api_type: 'greenhouse',    api_slug: 'contentful' },
-  { name: 'Amplemarket',           api_type: 'greenhouse',    api_slug: 'amplemarket' },
-  // Consumer / Marketplace
-  { name: 'Reddit',                api_type: 'greenhouse',    api_slug: 'reddit' },
-  { name: 'Duolingo',              api_type: 'greenhouse',    api_slug: 'duolingo' },
-  { name: 'Lyft',                  api_type: 'greenhouse',    api_slug: 'lyft' },
-  { name: 'DoorDash',              api_type: 'greenhouse',    api_slug: 'doordash' },
-  { name: 'Faire',                 api_type: 'greenhouse',    api_slug: 'faire' },
-  { name: 'Flexport',              api_type: 'greenhouse',    api_slug: 'flexport' },
-  { name: 'Instacart',             api_type: 'greenhouse',    api_slug: 'instacart' },
-  { name: 'Roblox',                api_type: 'greenhouse',    api_slug: 'roblox' },
-  // Identity / Comms / Networking
-  { name: 'Okta',                  api_type: 'greenhouse',    api_slug: 'okta' },
-  { name: 'Twilio',                api_type: 'greenhouse',    api_slug: 'twilio' },
-  // Health / Bio
-  { name: 'Oscar Health',          api_type: 'greenhouse',    api_slug: 'oscar' },
-  { name: 'Devoted Health',        api_type: 'greenhouse',    api_slug: 'devotedhealth' },
-  { name: 'Tempus',                api_type: 'greenhouse',    api_slug: 'tempus' },
-  // ── Greenhouse EU ──────────────────────────────────────────────────────────
-  { name: 'PolyAI',                api_type: 'greenhouse_eu', api_slug: 'polyai' },
-  { name: 'Parloa',                api_type: 'greenhouse_eu', api_slug: 'parloa' },
-  { name: 'Scandit',               api_type: 'greenhouse_eu', api_slug: 'scandit' },
-  { name: 'Trade Republic',        api_type: 'greenhouse_eu', api_slug: 'traderepublicbank' },
-  { name: 'Klarna',                api_type: 'greenhouse_eu', api_slug: 'klarna' },
-  { name: 'Zalando',               api_type: 'greenhouse_eu', api_slug: 'zalando' },
-  { name: 'Personio',              api_type: 'greenhouse_eu', api_slug: 'personio' },
-  { name: 'Mambu',                 api_type: 'greenhouse_eu', api_slug: 'mambu' },
-  { name: 'GoCardless',            api_type: 'greenhouse_eu', api_slug: 'gocardless' },
-  { name: 'Monzo',                 api_type: 'greenhouse_eu', api_slug: 'monzo' },
-  { name: 'Pleo',                  api_type: 'greenhouse_eu', api_slug: 'pleo' },
-  { name: 'Paddle',                api_type: 'greenhouse_eu', api_slug: 'paddle' },
-  { name: 'N26',                   api_type: 'greenhouse_eu', api_slug: 'n26' },
-  { name: 'SumUp',                 api_type: 'greenhouse_eu', api_slug: 'sumup' },
-  { name: 'Helsing',               api_type: 'greenhouse_eu', api_slug: 'helsing' },
-  // ── Ashby ──────────────────────────────────────────────────────────────────
-  { name: 'ElevenLabs',            api_type: 'ashby',         api_slug: 'elevenlabs' },
-  { name: 'Deepgram',              api_type: 'ashby',         api_slug: 'deepgram' },
-  { name: 'Vapi',                  api_type: 'ashby',         api_slug: 'vapi' },
-  { name: 'Bland AI',              api_type: 'ashby',         api_slug: 'bland' },
-  { name: 'Cohere',                api_type: 'ashby',         api_slug: 'cohere' },
-  { name: 'LangChain',             api_type: 'ashby',         api_slug: 'langchain' },
-  { name: 'Pinecone',              api_type: 'ashby',         api_slug: 'pinecone' },
-  { name: 'n8n',                   api_type: 'ashby',         api_slug: 'n8n' },
-  { name: 'Zapier',                api_type: 'ashby',         api_slug: 'zapier' },
-  { name: 'Attio',                 api_type: 'ashby',         api_slug: 'attio' },
-  { name: 'Aleph Alpha',           api_type: 'ashby',         api_slug: 'AlephAlpha' },
-  { name: 'DeepL',                 api_type: 'ashby',         api_slug: 'DeepL' },
-  { name: 'Synthesia',             api_type: 'ashby',         api_slug: 'synthesia' },
-  { name: 'Lovable',               api_type: 'ashby',         api_slug: 'lovable' },
-  { name: 'Groq',                  api_type: 'ashby',         api_slug: 'groq' },
-  { name: 'Replicate',             api_type: 'ashby',         api_slug: 'replicate' },
-  { name: 'Linear',                api_type: 'ashby',         api_slug: 'linear' },
-  { name: 'Hex',                   api_type: 'ashby',         api_slug: 'hex' },
-  { name: 'Descript',              api_type: 'ashby',         api_slug: 'descript' },
-  { name: 'MotherDuck',            api_type: 'ashby',         api_slug: 'motherduck' },
-  { name: 'dbt Labs',              api_type: 'ashby',         api_slug: 'dbtlabs' },
-  { name: 'Monte Carlo',           api_type: 'ashby',         api_slug: 'montecarlodata' },
-  { name: 'Hightouch',             api_type: 'ashby',         api_slug: 'hightouch' },
-  { name: 'WorkOS',                api_type: 'ashby',         api_slug: 'workos' },
-  { name: 'Neon',                  api_type: 'ashby',         api_slug: 'neon' },
-  { name: 'Supabase',              api_type: 'ashby',         api_slug: 'supabase' },
-  { name: 'Modal',                 api_type: 'ashby',         api_slug: 'modal' },
-  { name: 'Airbyte',               api_type: 'ashby',         api_slug: 'airbyte' },
-  { name: 'Retool',                api_type: 'ashby',         api_slug: 'retool' },
-  { name: 'Cursor',                api_type: 'ashby',         api_slug: 'cursor' },
-  { name: 'PostHog',               api_type: 'ashby',         api_slug: 'posthog' },
-  { name: 'Fivetran',              api_type: 'ashby',         api_slug: 'fivetran' },
-  // ── Lever ──────────────────────────────────────────────────────────────────
-  { name: 'Mistral AI',            api_type: 'lever',         api_slug: 'mistral' },
-  { name: 'Weights & Biases',      api_type: 'lever',         api_slug: 'wandb' },
-  { name: 'Palantir',              api_type: 'lever',         api_slug: 'palantir' },
-  { name: 'Qonto',                 api_type: 'lever',         api_slug: 'qonto' },
-  { name: 'Spotify',               api_type: 'lever',         api_slug: 'spotify' },
-  { name: 'Vinted',                api_type: 'lever',         api_slug: 'vinted' },
-  { name: 'Hugging Face',          api_type: 'lever',         api_slug: 'huggingface' },
-  { name: 'Anduril',               api_type: 'lever',         api_slug: 'anduril' },
-  { name: 'Sourcegraph',           api_type: 'lever',         api_slug: 'sourcegraph' },
-  { name: 'Grafana Labs',          api_type: 'lever',         api_slug: 'grafana' },
-  { name: 'Pulumi',                api_type: 'lever',         api_slug: 'pulumi' },
-  { name: 'Navan',                 api_type: 'lever',         api_slug: 'navan' },
-  { name: 'Watershed',             api_type: 'lever',         api_slug: 'watershed' },
-  { name: 'Cribl',                 api_type: 'lever',         api_slug: 'cribl' },
-  { name: 'CoreWeave',             api_type: 'lever',         api_slug: 'coreweave' },
-  { name: 'GitLab',                api_type: 'lever',         api_slug: 'gitlab' },
-  { name: 'Canva',                 api_type: 'lever',         api_slug: 'canva' },
-  { name: 'Chainalysis',           api_type: 'lever',         api_slug: 'chainalysis' },
-  { name: 'Honeycomb',             api_type: 'lever',         api_slug: 'honeycombio' },
-  { name: 'Aircall',               api_type: 'lever',         api_slug: 'aircall' },
-  { name: 'Contentsquare',         api_type: 'lever',         api_slug: 'contentsquare' },
-  { name: 'Dataiku',               api_type: 'lever',         api_slug: 'dataiku' },
-  { name: 'Spendesk',              api_type: 'lever',         api_slug: 'spendesk' },
-  { name: 'ngrok',                 api_type: 'lever',         api_slug: 'ngrok' },
-  { name: 'Mattermost',            api_type: 'lever',         api_slug: 'mattermost' },
-  { name: 'Payfit',                api_type: 'lever',         api_slug: 'payfit' },
-  { name: 'Wrike',                 api_type: 'lever',         api_slug: 'wrike' },
-  { name: 'Swile',                 api_type: 'lever',         api_slug: 'swile' },
-  { name: 'Algolia',               api_type: 'lever',         api_slug: 'algolia' },
-  { name: 'Pennylane',             api_type: 'lever',         api_slug: 'pennylane' },
-  // ── Ashby (additional) ────────────────────────────────────────────────────
-  { name: 'Vanta',                 api_type: 'ashby',         api_slug: 'vanta' },
-  { name: 'Statsig',               api_type: 'ashby',         api_slug: 'statsig' },
-  { name: 'Render',                api_type: 'ashby',         api_slug: 'render' },
-  { name: 'Resend',                api_type: 'ashby',         api_slug: 'resend' },
-  { name: 'Luma AI',               api_type: 'ashby',         api_slug: 'lumalabs' },
-  { name: 'Braintrust',            api_type: 'ashby',         api_slug: 'braintrust' },
-  // ── Greenhouse EU (additional) ────────────────────────────────────────────
-  { name: 'Framer',                api_type: 'greenhouse_eu', api_slug: 'framer' },
-  { name: 'Checkout.com',          api_type: 'greenhouse_eu', api_slug: 'checkout' },
-  { name: 'Mollie',                api_type: 'greenhouse_eu', api_slug: 'mollie' },
-  { name: 'Typeform',              api_type: 'greenhouse_eu', api_slug: 'typeform' },
-  { name: 'Pitch',                 api_type: 'greenhouse_eu', api_slug: 'pitch' },
-  { name: 'Oyster HR',             api_type: 'greenhouse_eu', api_slug: 'oysterhr' },
-  { name: 'Sennder',               api_type: 'greenhouse_eu', api_slug: 'sennder' },
-  { name: 'Staffbase',             api_type: 'greenhouse_eu', api_slug: 'staffbase' },
-  // ── Greenhouse US (additional) ────────────────────────────────────────────
-  // Dev tools & monitoring
-  { name: 'Sentry',                api_type: 'greenhouse',    api_slug: 'getsentry' },
-  { name: 'Buildkite',             api_type: 'greenhouse',    api_slug: 'buildkite' },
-  { name: 'Netlify',               api_type: 'greenhouse',    api_slug: 'netlify' },
-  { name: 'JFrog',                 api_type: 'greenhouse',    api_slug: 'jfrog' },
-  { name: 'CircleCI',              api_type: 'greenhouse',    api_slug: 'circleci' },
-  // Cybersecurity / Compliance
-  { name: 'Rapid7',                api_type: 'greenhouse',    api_slug: 'rapid7' },
-  { name: 'Illumio',               api_type: 'greenhouse',    api_slug: 'illumio' },
-  { name: 'Tanium',                api_type: 'greenhouse',    api_slug: 'tanium' },
-  { name: 'Drata',                 api_type: 'greenhouse',    api_slug: 'drata' },
-  // Data / Analytics / Sales
-  { name: 'mParticle',             api_type: 'greenhouse',    api_slug: 'mparticle' },
-  { name: 'Pendo',                 api_type: 'greenhouse',    api_slug: 'pendo' },
-  { name: 'Iterable',              api_type: 'greenhouse',    api_slug: 'iterable' },
-  { name: 'Heap',                  api_type: 'greenhouse',    api_slug: 'heap' },
-  { name: 'Clearbit',              api_type: 'greenhouse',    api_slug: 'clearbit' },
-  { name: '6sense',                api_type: 'greenhouse',    api_slug: '6sense' },
-  { name: 'Seismic',               api_type: 'greenhouse',    api_slug: 'seismic' },
-  { name: 'ActiveCampaign',        api_type: 'greenhouse',    api_slug: 'activecampaign' },
-  { name: 'UserTesting',           api_type: 'greenhouse',    api_slug: 'usertesting' },
-  { name: 'FullStory',             api_type: 'greenhouse',    api_slug: 'fullstory' },
-  { name: 'Clari',                 api_type: 'greenhouse',    api_slug: 'clari' },
-  { name: 'Salesloft',             api_type: 'greenhouse',    api_slug: 'salesloft' },
-  { name: 'Bombora',               api_type: 'greenhouse',    api_slug: 'bombora' },
-  // Databases / Infrastructure
-  { name: 'CockroachDB',           api_type: 'greenhouse',    api_slug: 'cockroachdb' },
-  // Fintech / Insurtech
-  { name: 'SoFi',                  api_type: 'greenhouse',    api_slug: 'sofi' },
-  { name: 'Blend',                 api_type: 'greenhouse',    api_slug: 'blend' },
-  { name: 'Coalition',             api_type: 'greenhouse',    api_slug: 'coalitioninc' },
-  { name: 'EarnIn',                api_type: 'greenhouse',    api_slug: 'earnin' },
-  // Healthcare
-  { name: 'Headway',               api_type: 'greenhouse',    api_slug: 'headwayhq' },
-  { name: 'Clover Health',         api_type: 'greenhouse',    api_slug: 'cloverhealth' },
-  { name: 'Color Health',          api_type: 'greenhouse',    api_slug: 'color' },
-  { name: 'Spring Health',         api_type: 'greenhouse',    api_slug: 'springhealth' },
-  { name: 'Hims & Hers',           api_type: 'greenhouse',    api_slug: 'hims' },
-  // Deep tech / Space
-  { name: 'Relativity Space',      api_type: 'greenhouse',    api_slug: 'relativity' },
-  { name: 'Planet Labs',           api_type: 'greenhouse',    api_slug: 'planet' },
-  { name: 'Motive',                api_type: 'greenhouse',    api_slug: 'gomotive' },
-  // SaaS / Marketplace / HR
-  { name: 'Smartsheet',            api_type: 'greenhouse',    api_slug: 'smartsheet' },
-  { name: 'Convoy',                api_type: 'greenhouse',    api_slug: 'convoy' },
-  { name: 'Andela',                api_type: 'greenhouse',    api_slug: 'andela' },
-  { name: 'Sendbird',              api_type: 'greenhouse',    api_slug: 'sendbird' },
-  { name: 'Lob',                   api_type: 'greenhouse',    api_slug: 'lob' },
-  { name: 'Gem',                   api_type: 'greenhouse',    api_slug: 'gem' },
-  { name: 'Phenom',                api_type: 'greenhouse',    api_slug: 'phenom' },
-  { name: 'Guru',                  api_type: 'greenhouse',    api_slug: 'getguru' },
-  { name: 'TaskUs',                api_type: 'greenhouse',    api_slug: 'taskus' },
-  { name: 'Better.com',            api_type: 'greenhouse',    api_slug: 'better' },
-  { name: 'Opendoor',              api_type: 'greenhouse',    api_slug: 'opendoor' },
-  { name: '10x Genomics',          api_type: 'greenhouse',    api_slug: '10xgenomics' },
-];
 
 const DEFAULT_KEYWORDS_POSITIVE = [
   'AI', 'ML', 'LLM', 'Agent', 'Agentic', 'GenAI', 'NLP', 'MLOps', 'LLMOps',
@@ -419,8 +141,10 @@ async function ensureCompaniesSeeded(userId) {
   if (parseInt(rows[0].cnt, 10) === 0) {
     for (const c of DEFAULT_COMPANIES) {
       await pool.query(
-        'INSERT INTO scanner_companies (user_id, name, api_type, api_slug, enabled) VALUES ($1,$2,$3,$4,TRUE)',
-        [userId, c.name, c.api_type, c.api_slug]
+        `INSERT INTO scanner_companies (user_id, name, api_type, api_slug, industry, enabled)
+         VALUES ($1,$2,$3,$4,$5,TRUE)
+         ON CONFLICT ON CONSTRAINT scanner_companies_user_ats_slug_unique DO NOTHING`,
+        [userId, c.name, c.api_type, c.api_slug.toLowerCase(), c.industry ?? 'Technology']
       );
     }
     // Mark as seeded so future company deletions don't trigger re-seeding
@@ -464,7 +188,7 @@ router.get('/companies', async (req, res) => {
 
 // POST /api/scanner/companies
 router.post('/companies', async (req, res) => {
-  const { name, api_type, api_slug } = req.body;
+  const { name, api_type, api_slug, industry } = req.body;
   if (!name || !api_type || !api_slug) {
     return res.status(400).json({ error: 'name, api_type, api_slug required' });
   }
@@ -472,12 +196,21 @@ router.post('/companies', async (req, res) => {
   if (!validTypes.includes(api_type)) {
     return res.status(400).json({ error: `api_type must be one of: ${validTypes.join(', ')}` });
   }
+  const industryValue = industry?.trim() || 'Technology';
+  if (!VALID_INDUSTRIES.includes(industryValue)) {
+    return res.status(400).json({ error: `industry must be one of: ${VALID_INDUSTRIES.join(', ')}` });
+  }
   try {
     const { rows } = await pool.query(
-      `INSERT INTO scanner_companies (user_id, name, api_type, api_slug, enabled)
-       VALUES ($1,$2,$3,$4,TRUE) RETURNING *`,
-      [req.user.id, name.trim(), api_type, api_slug.trim()]
+      `INSERT INTO scanner_companies (user_id, name, api_type, api_slug, industry, enabled)
+       VALUES ($1,$2,$3,$4,$5,TRUE)
+       ON CONFLICT ON CONSTRAINT scanner_companies_user_ats_slug_unique DO NOTHING
+       RETURNING *`,
+      [req.user.id, name.trim(), api_type, api_slug.trim().toLowerCase(), industryValue]
     );
+    if (rows.length === 0) {
+      return res.status(409).json({ error: 'A company with this slug already exists in your list.' });
+    }
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -487,7 +220,7 @@ router.post('/companies', async (req, res) => {
 // PATCH /api/scanner/companies/:id
 router.patch('/companies/:id', async (req, res) => {
   const id = parseInt(req.params.id, 10);
-  const { name, api_type, api_slug, enabled } = req.body;
+  const { name, api_type, api_slug, enabled, industry } = req.body;
   try {
     const { rows: existing } = await pool.query(
       'SELECT id FROM scanner_companies WHERE id=$1 AND user_id=$2',
@@ -507,8 +240,15 @@ router.patch('/companies/:id', async (req, res) => {
       fields.push(`api_type=$${idx++}`);
       vals.push(api_type);
     }
-    if (api_slug !== undefined)  { fields.push(`api_slug=$${idx++}`);  vals.push(api_slug); }
+    if (api_slug !== undefined)  { fields.push(`api_slug=$${idx++}`);  vals.push(api_slug.toLowerCase()); }
     if (enabled !== undefined)   { fields.push(`enabled=$${idx++}`);   vals.push(enabled); }
+    if (industry !== undefined) {
+      if (!VALID_INDUSTRIES.includes(industry)) {
+        return res.status(400).json({ error: `industry must be one of: ${VALID_INDUSTRIES.join(', ')}` });
+      }
+      fields.push(`industry=$${idx++}`);
+      vals.push(industry);
+    }
     if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });
 
     vals.push(id);
@@ -832,10 +572,10 @@ function parseAtsFromUrl(url) {
     const slug = parts[0];
     if (slug.length < 2 || slug.length > 80) return null;
 
-    if (host === 'boards.greenhouse.io') return { api_type: 'greenhouse', api_slug: slug };
-    if (host === 'boards.eu.greenhouse.io') return { api_type: 'greenhouse_eu', api_slug: slug };
-    if (host === 'jobs.lever.co') return { api_type: 'lever', api_slug: slug };
-    if (host === 'jobs.ashbyhq.com') return { api_type: 'ashby', api_slug: slug };
+    if (host === 'boards.greenhouse.io') return { api_type: 'greenhouse', api_slug: slug.toLowerCase() };
+    if (host === 'boards.eu.greenhouse.io') return { api_type: 'greenhouse_eu', api_slug: slug.toLowerCase() };
+    if (host === 'jobs.lever.co') return { api_type: 'lever', api_slug: slug.toLowerCase() };
+    if (host === 'jobs.ashbyhq.com') return { api_type: 'ashby', api_slug: slug.toLowerCase() };
   } catch {}
   return null;
 }
@@ -859,12 +599,12 @@ router.post('/discover', async (req, res) => {
       return res.status(400).json({ error: 'No CV found. Please paste your resume before running discovery.', code: 'NO_CV' });
     }
 
-    // Get existing company slugs so we can exclude them
+    // Get existing company (api_type, api_slug) pairs so we can exclude them
     const { rows: existing } = await pool.query(
-      'SELECT api_slug FROM scanner_companies WHERE user_id=$1',
+      'SELECT api_type, api_slug FROM scanner_companies WHERE user_id=$1',
       [userId]
     );
-    const existingSlugs = new Set(existing.map(r => r.api_slug.toLowerCase()));
+    const existingSlugs = new Set(existing.map(r => `${r.api_type}:${r.api_slug.toLowerCase()}`));
 
     // Step 1: Ask Claude to generate Exa search queries based on the CV
     const queryGenPrompt = `You are a career assistant. Based on the candidate CV below, generate 9 diverse Exa neural search queries to discover relevant tech companies that have open job postings on Greenhouse, Lever, or Ashby job boards.
@@ -922,7 +662,7 @@ Example: ["senior ML engineer AI startup 2025 greenhouse jobs", "platform engine
         if (!parsed) continue;
         const key = `${parsed.api_type}:${parsed.api_slug.toLowerCase()}`;
         if (seen.has(key)) continue;
-        if (existingSlugs.has(parsed.api_slug.toLowerCase())) continue;
+        if (existingSlugs.has(key)) continue;
         seen.add(key);
         candidates.push(parsed);
       }
@@ -984,7 +724,7 @@ Return ONLY the JSON array. No markdown, no explanation.`;
       .filter(c => c && c.slug && c.api_type && c.name)
       .filter(c => ALLOWED_API_TYPES.has(String(c.api_type)))
       .filter(c => parsedLookup.has(`${String(c.api_type)}:${String(c.slug).toLowerCase()}`))
-      .filter(c => !existingSlugs.has(String(c.slug).toLowerCase()))
+      .filter(c => !existingSlugs.has(`${String(c.api_type)}:${String(c.slug).toLowerCase()}`))
       .map(c => ({
         name: String(c.name).slice(0, 100),
         api_type: String(c.api_type),
@@ -999,6 +739,207 @@ Return ONLY the JSON array. No markdown, no explanation.`;
 
   } catch (err) {
     console.error('scanner/discover error:', err);
+    res.status(500).json({ error: err.message || 'Discovery failed. Please try again.' });
+  }
+});
+
+// POST /api/scanner/discover-companies
+// Body: { industry: string, count?: number }
+// Queries Exa to find companies in the given industry that use Greenhouse/Lever/Ashby,
+// validates discovered slugs, upserts valid ones into scanner_companies, returns summary.
+router.post('/discover-companies', async (req, res) => {
+  const userId = req.user.id;
+  const { industry, count = 20 } = req.body ?? {};
+
+  if (!industry || typeof industry !== 'string' || industry.trim().length === 0) {
+    return res.status(400).json({ error: 'industry is required' });
+  }
+  if (!VALID_INDUSTRIES.includes(industry.trim())) {
+    return res.status(400).json({ error: `industry must be one of: ${VALID_INDUSTRIES.join(', ')}` });
+  }
+  const industryLabel = industry.trim();
+  const targetCount = Math.min(Math.max(1, parseInt(count, 10) || 20), 50);
+
+  try {
+    // Get existing company (api_type, api_slug) pairs to avoid duplicates
+    const { rows: existing } = await pool.query(
+      'SELECT api_type, api_slug FROM scanner_companies WHERE user_id=$1',
+      [userId]
+    );
+    const existingSlugs = new Set(existing.map(r => `${r.api_type}:${r.api_slug.toLowerCase()}`));
+
+    // Build Exa search queries for this industry
+    const queries = [
+      `${industryLabel} company jobs Greenhouse hiring 2025`,
+      `${industryLabel} company careers Lever job board 2025`,
+      `${industryLabel} company jobs Ashby hiring portal 2025`,
+      `site:boards.greenhouse.io ${industryLabel} company`,
+      `site:jobs.lever.co ${industryLabel} company`,
+      `site:jobs.ashbyhq.com ${industryLabel} company`,
+    ];
+
+    const ATS_DOMAINS = [
+      'boards.greenhouse.io',
+      'boards.eu.greenhouse.io',
+      'jobs.lever.co',
+      'jobs.ashbyhq.com',
+    ];
+
+    // Run Exa searches in parallel
+    const searchResults = await Promise.allSettled(
+      queries.map(q => exaDiscoverSearch(q, ATS_DOMAINS))
+    );
+
+    // Collect and deduplicate parsed ATS entries
+    const seen = new Set();
+    const candidates = [];
+    for (const r of searchResults) {
+      if (r.status !== 'fulfilled' || !Array.isArray(r.value?.results)) continue;
+      for (const item of r.value.results) {
+        const parsed = parseAtsFromUrl(item.url || '');
+        if (!parsed) continue;
+        const key = `${parsed.api_type}:${parsed.api_slug.toLowerCase()}`;
+        if (seen.has(key)) continue;
+        if (existingSlugs.has(key)) continue;
+        seen.add(key);
+        candidates.push({ ...parsed, source_url: item.url });
+      }
+    }
+
+    if (candidates.length === 0) {
+      return res.json({ found: 0, added: 0, companies: [], industry: industryLabel });
+    }
+
+    const toProcess = candidates.slice(0, targetCount * 2);
+
+    // Ask Claude to identify company names from the slugs
+    const namePrompt = `You are a company research assistant. Given ATS job board slugs from the ${industryLabel} industry, identify the real company name for each slug.
+
+ATS slugs to identify:
+${toProcess.map((c, i) => `${i + 1}. slug="${c.api_slug}" ats="${c.api_type}"`).join('\n')}
+
+Rules:
+- Map each slug to its real company name (e.g. "datadoghq" → "Datadog")
+- Only include companies that plausibly belong to the "${industryLabel}" industry
+- If a slug clearly belongs to a different industry, exclude it
+- Return ONLY a JSON array
+
+Schema: [{"slug":"...", "api_type":"...", "name":"...", "include":true}]
+Return ONLY the JSON array. No markdown, no explanation.`;
+
+    const nameMsg = await anthropicClient.messages.create({
+      model: MODEL,
+      max_tokens: 1024,
+      system: 'You are a company research assistant. Respond ONLY with a valid JSON array.',
+      messages: [{ role: 'user', content: namePrompt }],
+    });
+
+    let named = [];
+    try {
+      const raw = nameMsg.content[0]?.text || '';
+      const match = raw.match(/\[[\s\S]*\]/);
+      named = JSON.parse(match ? match[0] : raw);
+      if (!Array.isArray(named)) named = [];
+    } catch {
+      named = [];
+    }
+
+    // Build lookup map from claude-identified names
+    const nameLookup = new Map();
+    for (const n of named) {
+      if (n && n.slug && n.name && n.include !== false) {
+        nameLookup.set(`${n.api_type}:${n.slug.toLowerCase()}`, n.name);
+      }
+    }
+
+    const ALLOWED_API_TYPES = new Set(['greenhouse', 'greenhouse_eu', 'ashby', 'lever']);
+
+    // Validate each candidate slug against the real ATS API endpoint before upserting.
+    // Only slugs that return HTTP 200 with a parseable body are accepted.
+    async function validateAtsSlug(api_type, api_slug) {
+      const url = buildApiUrl(api_type, api_slug);
+      if (!url) return false;
+      try {
+        const r = await fetch(url, {
+          method: 'GET',
+          signal: AbortSignal.timeout(8000),
+          headers: { 'User-Agent': 'CareerOps/1.0' },
+        });
+        if (!r.ok) return false;
+        // For Greenhouse: expect { jobs: [...] }
+        // For Ashby: expect { results: [...] } or { jobPostings: [...] }
+        // For Lever: expect an array
+        const body = await r.json();
+        if (api_type === 'greenhouse' || api_type === 'greenhouse_eu') {
+          return Array.isArray(body?.jobs);
+        }
+        if (api_type === 'ashby') {
+          return Array.isArray(body?.results) || Array.isArray(body?.jobPostings);
+        }
+        if (api_type === 'lever') {
+          return Array.isArray(body);
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    }
+
+    // Build the validated set in parallel batches to stay within the timeout budget.
+    // We process up to targetCount*2 candidates but stop once we have enough valid ones.
+    const validCandidates = [];
+    const BATCH_SIZE = 8;
+    for (let i = 0; i < toProcess.length && validCandidates.length < targetCount; i += BATCH_SIZE) {
+      const batch = toProcess.slice(i, i + BATCH_SIZE).filter(c => {
+        if (!ALLOWED_API_TYPES.has(c.api_type)) return false;
+        if (existingSlugs.has(`${c.api_type}:${c.api_slug.toLowerCase()}`)) return false;
+        const key = `${c.api_type}:${c.api_slug.toLowerCase()}`;
+        return nameLookup.has(key);
+      });
+      const results = await Promise.allSettled(
+        batch.map(c => validateAtsSlug(c.api_type, c.api_slug).then(ok => ({ c, ok })))
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value.ok) {
+          validCandidates.push(r.value.c);
+        }
+      }
+    }
+
+    // Upsert validated companies into the database
+    const added = [];
+    for (const c of validCandidates) {
+      if (added.length >= targetCount) break;
+      const key = `${c.api_type}:${c.api_slug.toLowerCase()}`;
+      const companyName = nameLookup.get(key);
+      if (!companyName) continue;
+
+      try {
+        const { rows } = await pool.query(
+          `INSERT INTO scanner_companies (user_id, name, api_type, api_slug, industry, enabled)
+           VALUES ($1,$2,$3,$4,$5,TRUE)
+           ON CONFLICT ON CONSTRAINT scanner_companies_user_ats_slug_unique DO NOTHING
+           RETURNING *`,
+          [userId, companyName.slice(0, 255), c.api_type, c.api_slug.slice(0, 255).toLowerCase(), industryLabel]
+        );
+        if (rows.length > 0) {
+          added.push(rows[0]);
+          existingSlugs.add(`${c.api_type}:${c.api_slug.toLowerCase()}`);
+        }
+      } catch {
+        // skip on conflict/error
+      }
+    }
+
+    res.json({
+      found: candidates.length,
+      added: added.length,
+      companies: added,
+      industry: industryLabel,
+    });
+
+  } catch (err) {
+    console.error('scanner/discover-companies error:', err);
     res.status(500).json({ error: err.message || 'Discovery failed. Please try again.' });
   }
 });

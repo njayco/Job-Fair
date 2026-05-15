@@ -729,6 +729,7 @@ export interface ScannerCompany {
   name: string;
   api_type: ScannerApiType;
   api_slug: string;
+  industry: string | null;
   enabled: boolean;
   created_at: string;
 }
@@ -905,6 +906,21 @@ export async function discoverScannerCompanies(cvContent?: string): Promise<{ co
   });
   const data = await res.json();
   if (!res.ok) throw Object.assign(new Error(data.error || 'Discovery failed'), { code: data.code });
+  return data;
+}
+
+export async function discoverCompaniesByIndustry(body: {
+  industry: string;
+  count?: number;
+}): Promise<{ found: number; added: number; companies: ScannerCompany[]; industry: string }> {
+  const res = await fetch('/api/scanner/discover-companies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Industry discovery failed');
   return data;
 }
 
