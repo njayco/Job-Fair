@@ -456,7 +456,7 @@ router.post('/run', async (req, res) => {
             evaluation.block_a?.remote || null,
             evaluation.score?.comp !== undefined ? parseFloat(evaluation.score.comp) : null,
             safeKeywords.length > 0 ? safeKeywords : null,
-            evaluation,
+            JSON.stringify(evaluation),
           ]
         );
 
@@ -495,7 +495,7 @@ router.post('/run', async (req, res) => {
         evaluated,
         startedAt,
         finishedAt,
-        results,
+        JSON.stringify(results),
       ]
     );
     const run = runRows[0];
