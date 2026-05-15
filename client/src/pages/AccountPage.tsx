@@ -5,6 +5,7 @@ import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { LogOut, Mail, Camera, CheckCircle, AlertCircle } from 'lucide-react';
 import { updateProfile, uploadAvatar, deleteAvatar } from '../api';
+import CropModal from '../components/CropModal';
 
 const FIELD_STYLE: React.CSSProperties = {
   width: '100%',
@@ -45,10 +46,12 @@ export default function AccountPage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [saveError, setSaveError] = useState('');
 
-  const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarRemoving, setAvatarRemoving] = useState(false);
   const [avatarError, setAvatarError] = useState('');
   const [avatarKey, setAvatarKey] = useState(0);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [cropUploading, setCropUploading] = useState(false);
+  const [cropUploadError, setCropUploadError] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,21 +109,33 @@ export default function AccountPage() {
     }
   };
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setAvatarUploading(true);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setAvatarError('');
+    setCropFile(file);
+  };
+
+  const handleCropConfirm = async (blob: Blob) => {
+    setCropUploading(true);
+    setCropUploadError('');
     try {
-      await uploadAvatar(file);
+      await uploadAvatar(blob);
       await refreshUser();
       setAvatarKey(k => k + 1);
+      setCropFile(null);
     } catch (err: unknown) {
-      setAvatarError(err instanceof Error ? err.message : 'Upload failed');
+      setCropUploadError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
-      setAvatarUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setCropUploading(false);
     }
+  };
+
+  const handleCropCancel = () => {
+    setCropFile(null);
+    setCropUploadError('');
+    setCropUploading(false);
   };
 
   if (!user) return null;
@@ -134,6 +149,16 @@ export default function AccountPage() {
     : user.email.slice(0, 2).toUpperCase();
 
   return (
+    <>
+    {cropFile && (
+      <CropModal
+        file={cropFile}
+        onConfirm={handleCropConfirm}
+        onCancel={handleCropCancel}
+        isUploading={cropUploading}
+        uploadError={cropUploadError}
+      />
+    )}
     <Layout>
       <div className="max-w-2xl mx-auto px-4 py-10 space-y-8">
         <div>
@@ -175,13 +200,13 @@ export default function AccountPage() {
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={avatarUploading || avatarRemoving}
+              disabled={cropUploading || avatarRemoving}
               className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center border-2 transition-colors"
               style={{
                 backgroundColor: '#3B82F6',
                 borderColor: '#0F172A',
                 color: '#fff',
-                cursor: (avatarUploading || avatarRemoving) ? 'wait' : 'pointer',
+                cursor: (cropUploading || avatarRemoving) ? 'wait' : 'pointer',
               }}
               title="Change photo"
             >
@@ -214,15 +239,15 @@ export default function AccountPage() {
               ID #{user.id} · {user.account_type === 'employer' ? 'Employer' : 'Job Seeker'}
               {user.is_admin && <span style={{ color: '#F59E0B' }}> · Admin</span>}
             </div>
-            {(avatarUploading || avatarRemoving) && (
+            {avatarRemoving && (
               <div className="text-xs mt-1" style={{ color: '#3B82F6', fontFamily: "'JetBrains Mono', monospace" }}>
-                {avatarRemoving ? 'Removing photo...' : 'Uploading photo...'}
+                Removing photo...
               </div>
             )}
             {avatarError && (
               <div className="text-xs mt-1" style={{ color: '#EF4444' }}>{avatarError}</div>
             )}
-            {!avatarUploading && !avatarRemoving && (
+            {!avatarRemoving && (
               <div className="flex items-center gap-3 mt-1">
                 <div className="text-xs" style={{ color: '#94A3B8' }}>
                   Click the camera icon to change your photo (max 5 MB)
@@ -384,5 +409,6 @@ export default function AccountPage() {
         </div>
       </div>
     </Layout>
+    </>
   );
 }

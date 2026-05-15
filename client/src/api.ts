@@ -1148,9 +1148,9 @@ export async function deleteAvatar(): Promise<{ ok: boolean }> {
   return data;
 }
 
-export async function uploadAvatar(file: File): Promise<{ ok: boolean }> {
+export async function uploadAvatar(file: File | Blob): Promise<{ ok: boolean }> {
   const fd = new FormData();
-  fd.append('avatar', file);
+  fd.append('avatar', file instanceof File ? file : new File([file], 'avatar.jpg', { type: 'image/jpeg' }));
   const res = await fetch('/api/profile/avatar', {
     method: 'POST',
     credentials: 'include',
