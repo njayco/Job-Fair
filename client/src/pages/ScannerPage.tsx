@@ -893,8 +893,11 @@ export default function ScannerPage() {
                 onChange={e => setIndustryFilter(e.target.value)}
                 className="text-xs font-mono px-2 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-primary)] transition-colors"
               >
-                <option value="">All industries</option>
-                {VALID_INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                <option value="">All industries ({companies.length})</option>
+                {VALID_INDUSTRIES.map(ind => {
+                  const count = companies.filter(c => c.industry === ind).length;
+                  return <option key={ind} value={ind}>{ind} ({count})</option>;
+                })}
               </select>
               <div className="flex flex-wrap gap-1.5 ml-auto">
                 <button
