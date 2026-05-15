@@ -233,6 +233,18 @@ const SCHEMA_SQL = `
 
   UPDATE scanner_companies SET api_slug = lower(api_slug) WHERE api_slug != lower(api_slug);
 
+  -- Admin flag on users
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+  UPDATE users SET is_admin = TRUE WHERE email = 'najeejere@gmail.com';
+
+  -- Page-view analytics
+  CREATE TABLE IF NOT EXISTS page_views (
+    id         SERIAL PRIMARY KEY,
+    path       VARCHAR(500) NOT NULL,
+    referrer   VARCHAR(500),
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+
   DROP TRIGGER IF EXISTS update_apply_attempts_updated_at ON apply_attempts;
   CREATE TRIGGER update_apply_attempts_updated_at
     BEFORE UPDATE ON apply_attempts

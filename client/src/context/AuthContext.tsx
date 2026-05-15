@@ -4,6 +4,7 @@ interface User {
   id: number;
   email: string;
   account_type: 'employee' | 'employer';
+  is_admin: boolean;
 }
 
 interface AuthContextValue {
@@ -25,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/me', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        setUser({ id: data.id, email: data.email, account_type: data.account_type ?? 'employee' });
+        setUser({ id: data.id, email: data.email, account_type: data.account_type ?? 'employee', is_admin: data.is_admin ?? false });
       } else {
         setUser(null);
       }
@@ -62,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Signup failed');
-    setUser({ id: data.id, email: data.email, account_type: data.account_type ?? 'employee' });
+    setUser({ id: data.id, email: data.email, account_type: data.account_type ?? 'employee', is_admin: data.is_admin ?? false });
   };
 
   const logout = async () => {

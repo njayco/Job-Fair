@@ -8,6 +8,7 @@ import { readFileSync } from 'fs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 import { bootstrapSchema } from './db.js';
+import pool from './db.js';
 import { requireAuth } from './lib/authMiddleware.js';
 
 import healthRouter from './routes/health.js';
@@ -23,6 +24,7 @@ import savedJobsRouter from './routes/saved-jobs.js';
 import employerRouter from './routes/employer.js';
 import scannerRouter from './routes/scanner.js';
 import applyRouter from './routes/apply.js';
+import adminRouter from './routes/admin.js';
 
 const app = express();
 const PORT = process.env.PORT || process.env.API_PORT || 3001;
@@ -42,6 +44,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Page-view analytics — fire-and-forget INSERT for every non-API GET request
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api/') && !req.path.startsWith('/assets/')) {
+    const referrer = (req.headers.referer || req.headers.referrer || '').slice(0, 500);
+    const path = req.path.slice(0, 500);
+    pool.query('INSERT INTO page_views (path, referrer) VALUES ($1, $2)', [path, referrer])
+      .catch(() => {});
+  }
+  next();
+});
+
 app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/evaluate', requireAuth, evaluateRouter);
@@ -55,6 +68,7 @@ app.use('/api/saved-jobs', requireAuth, savedJobsRouter);
 app.use('/api/employer', requireAuth, employerRouter);
 app.use('/api/scanner', requireAuth, scannerRouter);
 app.use('/api/apply', requireAuth, applyRouter);
+app.use('/api/admin', requireAuth, adminRouter);
 
 app.use('/api/*path', (req, res) => {
   res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });

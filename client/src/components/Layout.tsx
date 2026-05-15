@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Terminal, LayoutDashboard, FileText, User, LogOut, Heart, ExternalLink, Sparkles, Search, Plus, Kanban, Radar } from 'lucide-react';
+import { Terminal, LayoutDashboard, FileText, User, LogOut, Heart, ExternalLink, Sparkles, Search, Plus, Kanban, Radar, ShieldCheck } from 'lucide-react';
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -45,6 +45,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       <Kanban className="w-4 h-4" />
                       Pipeline
                     </Link>
+                    {user.is_admin && (
+                      <Link to="/admin" className="flex items-center gap-2 text-sm font-medium hover:text-amber-400 transition-colors text-amber-500/70">
+                        <ShieldCheck className="w-4 h-4" />
+                        <span className="hidden sm:inline">Admin</span>
+                      </Link>
+                    )}
                     <Link to="/account" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
                       <User className="w-4 h-4" />
                       <span className="hidden sm:inline max-w-[140px] truncate">{user.email}</span>
@@ -80,6 +86,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       <FileText className="w-4 h-4" />
                       New Evaluation
                     </Link>
+                    {user.is_admin && (
+                      <Link to="/admin" className="flex items-center gap-2 text-sm font-medium hover:text-amber-400 transition-colors text-amber-500/70">
+                        <ShieldCheck className="w-4 h-4" />
+                        <span className="hidden sm:inline">Admin</span>
+                      </Link>
+                    )}
                     <Link to="/account" className="flex items-center gap-2 text-sm font-medium hover:text-[var(--color-primary)] transition-colors text-[var(--color-text-muted)]">
                       <User className="w-4 h-4" />
                       <span className="hidden sm:inline max-w-[140px] truncate">{user.email}</span>

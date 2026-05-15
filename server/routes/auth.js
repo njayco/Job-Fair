@@ -97,7 +97,7 @@ router.post('/logout', (req, res) => {
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, account_type, created_at FROM users WHERE id = $1',
+      'SELECT id, email, account_type, is_admin, created_at FROM users WHERE id = $1',
       [req.user.id]
     );
     if (!result.rows.length) {
