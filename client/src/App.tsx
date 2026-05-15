@@ -19,6 +19,7 @@ import EmployerSearchPage from './pages/EmployerSearchPage';
 import EmployerCandidateProfilePage from './pages/EmployerCandidateProfilePage';
 import EmployerPipelinePage from './pages/EmployerPipelinePage';
 import AdminPage from './pages/AdminPage';
+import AdminRoute from './components/AdminRoute';
 
 function App() {
   return (
@@ -50,7 +51,7 @@ function App() {
           <Route path="/employer/pipeline" element={<ProtectedRoute><EmployerPipelinePage /></ProtectedRoute>} />
 
           {/* Admin-only route */}
-          <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+          <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

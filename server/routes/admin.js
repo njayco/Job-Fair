@@ -71,7 +71,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
 router.get('/recent-signups', requireAdmin, async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT id, email, account_type, is_admin, created_at
+      SELECT id, email, account_type, created_at
       FROM users
       ORDER BY created_at DESC
       LIMIT 20

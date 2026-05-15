@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 
 interface AdminStats {
@@ -30,15 +29,12 @@ function StatCard({ label, value, sub }: { label: string; value: number | string
 }
 
 export default function AdminPage() {
-  const { user } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!user?.is_admin) return;
-
     Promise.all([
       fetch('/api/admin/stats', { credentials: 'include' }).then(r => r.json()),
       fetch('/api/admin/recent-signups', { credentials: 'include' }).then(r => r.json()),
@@ -50,20 +46,7 @@ export default function AdminPage() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, [user]);
-
-  if (!user?.is_admin) {
-    return (
-      <Layout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-5xl font-bold text-[var(--color-text-muted)] mb-4">403</div>
-            <div className="text-[var(--color-text-muted)]">You don't have permission to view this page.</div>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
+  }, []);
 
   return (
     <Layout>
