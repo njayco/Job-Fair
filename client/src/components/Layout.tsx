@@ -14,9 +14,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const isEmployer = user?.account_type === 'employer';
 
-  const initials = user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : 'CO';
+  const initials = user?.first_name
+    ? (user.first_name[0] + (user.last_name?.[0] ?? '')).toUpperCase()
+    : (user?.email ? user.email.slice(0, 2).toUpperCase() : 'CO');
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
@@ -137,7 +137,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
                 <Link
                   to="/account"
-                  className="flex items-center justify-center w-9 h-9 rounded-full border text-sm font-semibold transition-colors hover:border-[#3B82F6]"
+                  className="flex items-center justify-center w-9 h-9 rounded-full border overflow-hidden text-sm font-semibold transition-colors hover:border-[#3B82F6]"
                   style={{
                     backgroundColor: '#0F172A',
                     borderColor: '#1E293B',
@@ -146,7 +146,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   }}
                   title={user.email}
                 >
-                  {initials}
+                  {user.has_avatar ? (
+                    <img
+                      src="/api/profile/avatar"
+                      alt="Avatar"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    initials
+                  )}
                 </Link>
 
                 <button

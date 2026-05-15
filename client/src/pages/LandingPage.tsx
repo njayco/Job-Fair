@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../context/AuthContext';
-import { Terminal, Crosshair, Zap, BarChart, LayoutDashboard, FileText, Heart, ExternalLink, User, Briefcase, ShieldCheck } from 'lucide-react';
+import { Terminal, Crosshair, Zap, BarChart, FileText, Heart, ExternalLink, User, Briefcase, ShieldCheck } from 'lucide-react';
 
 export default function LandingPage() {
   const { user } = useAuth();
@@ -15,7 +15,7 @@ export default function LandingPage() {
             <span>v1.0.0 · Free forever</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-[var(--color-text-muted)]">
-            High-Signal Career Intelligence
+            Land Your Dream Job
           </h1>
           <p className="text-xl text-[var(--color-text-muted)] max-w-2xl mx-auto leading-relaxed">
             Stop applying blindly. Evaluate roles against your background instantly. 
@@ -24,16 +24,10 @@ export default function LandingPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
-          <Link to="/evaluate">
+          <Link to="/job-finder">
             <Button size="lg" className="w-full sm:w-auto text-lg px-8 gap-2 font-mono">
               <Zap className="w-5 h-5" />
-              START EVALUATING
-            </Button>
-          </Link>
-          <Link to="/pipeline">
-            <Button variant="secondary" size="lg" className="w-full sm:w-auto text-lg px-8 gap-2 font-mono">
-              <LayoutDashboard className="w-5 h-5" />
-              VIEW PIPELINE
+              START SEARCH
             </Button>
           </Link>
           {user?.is_admin && (

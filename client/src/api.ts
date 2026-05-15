@@ -1095,6 +1095,64 @@ export async function generateTailoredResumePdf(
   return res.blob();
 }
 
+// ── Profile API ───────────────────────────────────────────────────────────────
+
+export interface UserProfile {
+  id: number;
+  email: string;
+  account_type: string;
+  is_admin: boolean;
+  created_at: string;
+  first_name: string | null;
+  last_name: string | null;
+  desired_occupation: string | null;
+  industry: string | null;
+  location: string | null;
+  interests: string | null;
+  has_avatar: boolean;
+}
+
+export async function getProfile(): Promise<UserProfile> {
+  const res = await fetch('/api/profile', { credentials: 'include' });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch profile');
+  return data;
+}
+
+export async function updateProfile(body: {
+  first_name?: string;
+  last_name?: string;
+  desired_occupation?: string;
+  industry?: string;
+  location?: string;
+  interests?: string;
+}): Promise<UserProfile> {
+  const res = await fetch('/api/profile', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to update profile');
+  return data;
+}
+
+export async function uploadAvatar(file: File): Promise<{ ok: boolean }> {
+  const fd = new FormData();
+  fd.append('avatar', file);
+  const res = await fetch('/api/profile/avatar', {
+    method: 'POST',
+    credentials: 'include',
+    body: fd,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to upload avatar');
+  return data;
+}
+
+export const AVATAR_URL = '/api/profile/avatar';
+
 // Helpers
 export const APP_STATUSES: AppStatus[] = [
   'Evaluated', 'Applied', 'Responded', 'Interview',

@@ -26,6 +26,7 @@ import employerRouter from './routes/employer.js';
 import scannerRouter from './routes/scanner.js';
 import applyRouter from './routes/apply.js';
 import adminRouter from './routes/admin.js';
+import profileRouter from './routes/profile.js';
 
 const app = express();
 const PORT = process.env.PORT || process.env.API_PORT || 3001;
@@ -80,6 +81,7 @@ app.use('/api/employer', requireAuth, employerRouter);
 app.use('/api/scanner', requireAuth, scannerRouter);
 app.use('/api/apply', requireAuth, applyRouter);
 app.use('/api/admin', requireAuth, adminRouter);
+app.use('/api/profile', requireAuth, profileRouter);
 
 app.use('/api/*path', (req, res) => {
   res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });

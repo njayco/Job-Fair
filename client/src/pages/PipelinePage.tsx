@@ -153,7 +153,9 @@ export default function PipelinePage() {
   const interviewCount = apps.filter(a => a.status === 'Interview' || a.status === 'Offer').length;
   const bestScore = apps.length > 0 ? (apps[0].score || 'N/A') : 'N/A';
   const topScoreApp = apps.find(a => a.score);
-  const displayName = user?.email ? user.email.split('@')[0] : 'there';
+  const displayName = user?.first_name
+    ? user.first_name
+    : (user?.email ? user.email.split('@')[0] : 'there');
 
   return (
     <Layout>
@@ -170,7 +172,7 @@ export default function PipelinePage() {
                 className="text-3xl md:text-4xl font-bold mb-2 tracking-tight"
                 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: '#F0F4FF' }}
               >
-                Welcome back, {displayName}
+                Welcome, {displayName}
               </h1>
               <p style={{ color: '#94A3B8' }}>Here's what's happening with your job search today.</p>
             </div>

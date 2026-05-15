@@ -5,6 +5,13 @@ interface User {
   email: string;
   account_type: 'employee' | 'employer';
   is_admin: boolean;
+  first_name: string | null;
+  last_name: string | null;
+  desired_occupation: string | null;
+  industry: string | null;
+  location: string | null;
+  interests: string | null;
+  has_avatar: boolean;
 }
 
 interface AuthContextValue {
@@ -13,6 +20,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, account_type?: 'employee' | 'employer') => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -26,7 +34,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/me', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        setUser({ id: data.id, email: data.email, account_type: data.account_type ?? 'employee', is_admin: data.is_admin ?? false });
+        setUser({
+          id: data.id,
+          email: data.email,
+          account_type: data.account_type ?? 'employee',
+          is_admin: data.is_admin ?? false,
+          first_name: data.first_name ?? null,
+          last_name: data.last_name ?? null,
+          desired_occupation: data.desired_occupation ?? null,
+          industry: data.industry ?? null,
+          location: data.location ?? null,
+          interests: data.interests ?? null,
+          has_avatar: data.has_avatar ?? false,
+        });
       } else {
         setUser(null);
       }
@@ -63,7 +83,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Signup failed');
-    setUser({ id: data.id, email: data.email, account_type: data.account_type ?? 'employee', is_admin: data.is_admin ?? false });
+    setUser({
+      id: data.id,
+      email: data.email,
+      account_type: data.account_type ?? 'employee',
+      is_admin: data.is_admin ?? false,
+      first_name: data.first_name ?? null,
+      last_name: data.last_name ?? null,
+      desired_occupation: data.desired_occupation ?? null,
+      industry: data.industry ?? null,
+      location: data.location ?? null,
+      interests: data.interests ?? null,
+      has_avatar: data.has_avatar ?? false,
+    });
   };
 
   const logout = async () => {
@@ -72,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, refreshUser: fetchMe }}>
       {children}
     </AuthContext.Provider>
   );

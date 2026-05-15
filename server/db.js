@@ -236,6 +236,16 @@ const SCHEMA_SQL = `
   -- Admin flag on users
   ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
 
+  -- Extended profile fields
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS desired_occupation VARCHAR(255);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS industry VARCHAR(100);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS location VARCHAR(255);
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS interests TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar BYTEA;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_mimetype VARCHAR(100);
+
   -- Page-view analytics
   CREATE TABLE IF NOT EXISTS page_views (
     id         SERIAL PRIMARY KEY,

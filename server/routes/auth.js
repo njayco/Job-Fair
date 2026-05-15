@@ -35,7 +35,11 @@ router.post('/signup', async (req, res) => {
     const is_admin = adminEmail && email.toLowerCase() === adminEmail;
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, account_type, is_admin) VALUES ($1, $2, $3, $4) RETURNING id, email, account_type, is_admin, created_at',
+      `INSERT INTO users (email, password_hash, account_type, is_admin)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, email, account_type, is_admin, created_at,
+                 first_name, last_name, desired_occupation, industry, location, interests,
+                 (avatar IS NOT NULL) AS has_avatar`,
       [email.toLowerCase(), password_hash, account_type, is_admin]
     );
 
@@ -43,7 +47,20 @@ router.post('/signup', async (req, res) => {
     const token = signToken({ id: user.id, email: user.email, account_type: user.account_type });
     setAuthCookie(res, token);
 
-    res.status(201).json({ id: user.id, email: user.email, account_type: user.account_type, is_admin: user.is_admin, created_at: user.created_at });
+    res.status(201).json({
+      id: user.id,
+      email: user.email,
+      account_type: user.account_type,
+      is_admin: user.is_admin,
+      created_at: user.created_at,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      desired_occupation: user.desired_occupation,
+      industry: user.industry,
+      location: user.location,
+      interests: user.interests,
+      has_avatar: user.has_avatar,
+    });
   } catch (err) {
     console.error('POST /api/auth/signup error:', err);
     res.status(500).json({ error: 'Signup failed' });
@@ -89,7 +106,15 @@ router.post('/login', async (req, res) => {
     const token = signToken({ id: user.id, email: user.email, account_type: user.account_type });
     setAuthCookie(res, token);
 
-    res.json({ id: user.id, email: user.email, account_type: user.account_type, is_admin: user.is_admin ?? false });
+    // Fetch full profile fields so login response matches /me shape
+    const full = await pool.query(
+      `SELECT id, email, account_type, is_admin, created_at,
+              first_name, last_name, desired_occupation, industry, location, interests,
+              (avatar IS NOT NULL) AS has_avatar
+       FROM users WHERE id = $1`,
+      [user.id]
+    );
+    res.json(full.rows[0]);
   } catch (err) {
     console.error('POST /api/auth/login error:', err);
     res.status(500).json({ error: 'Login failed' });
@@ -106,7 +131,10 @@ router.post('/logout', (req, res) => {
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, account_type, is_admin, created_at FROM users WHERE id = $1',
+      `SELECT id, email, account_type, is_admin, created_at,
+              first_name, last_name, desired_occupation, industry, location, interests,
+              (avatar IS NOT NULL) AS has_avatar
+       FROM users WHERE id = $1`,
       [req.user.id]
     );
     if (!result.rows.length) {
