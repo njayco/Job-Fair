@@ -1,24 +1,25 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: hsl(220, 30%, 8%);
-  --color-surface: hsl(220, 20%, 12%);
-  --color-surface-hover: hsl(220, 20%, 16%);
-  --color-surface-active: hsl(220, 20%, 20%);
-  --color-primary: hsl(187, 74%, 32%);
-  --color-primary-hover: hsl(187, 74%, 42%);
-  --color-accent: hsl(270, 70%, 45%);
-  --color-accent-hover: hsl(270, 70%, 55%);
-  --color-text: hsl(0, 0%, 95%);
-  --color-text-muted: hsl(220, 10%, 60%);
-  --color-border: hsl(220, 20%, 20%);
+  --color-bg: #0A0F1E;
+  --color-surface: #0F172A;
+  --color-surface-hover: #1E293B;
+  --color-surface-active: #263347;
+  --color-primary: #3B82F6;
+  --color-primary-hover: #60A5FA;
+  --color-accent: #10B981;
+  --color-accent-hover: #34D399;
+  --color-text: #F0F4FF;
+  --color-text-muted: #94A3B8;
+  --color-border: #1E293B;
 
-  --color-green-indicator: hsl(142, 70%, 40%);
-  --color-yellow-indicator: hsl(45, 93%, 47%);
-  --color-red-indicator: hsl(0, 84%, 60%);
-  
-  --font-mono: "Space Mono", monospace;
+  --color-green-indicator: #10B981;
+  --color-yellow-indicator: #F59E0B;
+  --color-red-indicator: #EF4444;
+
+  --font-mono: "JetBrains Mono", monospace;
   --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
 }
 
 body {
@@ -30,7 +31,8 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   color: var(--color-text);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
@@ -39,19 +41,24 @@ input, textarea, select {
   background-color: var(--color-surface);
   color: var(--color-text);
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 0.5rem 0.75rem;
   font-family: var(--font-sans);
-  transition: border-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .font-mono {
   font-family: var(--font-mono);
+}
+
+.font-display {
+  font-family: var(--font-display);
 }
 
 .prose {
@@ -60,6 +67,7 @@ input:focus, textarea:focus, select:focus {
 }
 .prose h1, .prose h2, .prose h3, .prose h4 {
   color: var(--color-text);
+  font-family: var(--font-display);
   margin-top: 1.5em;
   margin-bottom: 0.5em;
 }
@@ -78,7 +86,9 @@ input:focus, textarea:focus, select:focus {
   color: var(--color-primary);
   text-decoration: underline;
 }
-.prose strong {
-  color: var(--color-text);
-  font-weight: 600;
-}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0A0F1E; }
+::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3B82F6; }
