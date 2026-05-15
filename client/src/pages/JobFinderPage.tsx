@@ -28,6 +28,114 @@ function MatchBadge({ pct }: { pct: number }) {
   );
 }
 
+function GreenhouseJobCard({
+  job,
+  onEvaluate,
+  onAssistedApply,
+  savedJobId,
+  onSave,
+  onUnsave,
+  assistedApplyLoading,
+}: {
+  job: JobFinderResult;
+  onEvaluate: (job: JobFinderResult) => void;
+  onAssistedApply: (job: JobFinderResult) => void;
+  savedJobId?: number;
+  onSave: (job: JobFinderResult) => void;
+  onUnsave: (savedId: number) => void;
+  assistedApplyLoading?: boolean;
+}) {
+  const isSaved = savedJobId !== undefined;
+  const depts = (job as JobFinderResult & { departments?: string[] }).departments ?? [];
+
+  return (
+    <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-5 space-y-3 hover:border-emerald-500/30 transition-colors">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-1">
+          <h3 className="font-bold text-[var(--color-text)] leading-tight">{job.role}</h3>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <span className="text-sm font-medium text-emerald-400">{job.company}</span>
+            <span className="text-[var(--color-border)]">·</span>
+            <span className="text-sm text-[var(--color-text-muted)]">{job.location}</span>
+            {job.remote_ok && (
+              <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                Remote OK
+              </span>
+            )}
+            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+              <Leaf className="w-3 h-3" />
+              Greenhouse
+            </span>
+            {depts.slice(0, 2).map((d, i) => (
+              <span key={i} className="text-xs font-mono px-1.5 py-0.5 rounded bg-[var(--color-bg)] text-[var(--color-text-muted)] border border-[var(--color-border)]">
+                {d}
+              </span>
+            ))}
+          </div>
+        </div>
+        <a
+          href={job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-emerald-400 hover:bg-emerald-500/5 transition-colors"
+          title="View job posting"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </a>
+      </div>
+
+      {/* Description snippet */}
+      {job.description && (
+        <p className="text-sm text-[var(--color-text-muted)] leading-relaxed line-clamp-3">
+          {job.description}
+        </p>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)]">
+        <a
+          href={job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-mono text-[var(--color-text-muted)] hover:text-emerald-400 transition-colors truncate max-w-[180px]"
+        >
+          {job.url.replace(/^https?:\/\//, '').slice(0, 55)}
+        </a>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => isSaved ? onUnsave(savedJobId!) : onSave(job)}
+            aria-label={isSaved ? 'Remove from saved' : 'Save job'}
+            className={`inline-flex items-center gap-1.5 text-xs font-mono px-2 py-1.5 rounded-lg border transition-colors ${
+              isSaved
+                ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20'
+                : 'text-[var(--color-text-muted)] border-[var(--color-border)] bg-transparent hover:text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-500/5'
+            }`}
+          >
+            {isSaved ? <><BookmarkCheck className="w-3.5 h-3.5" />Saved</> : <><Bookmark className="w-3.5 h-3.5" />Save</>}
+          </button>
+          <Button
+            variant="outline"
+            onClick={() => onEvaluate(job)}
+            className="font-mono text-xs gap-1.5"
+          >
+            Evaluate Fit
+            <ChevronRight className="w-3 h-3" />
+          </Button>
+          <button
+            onClick={() => onAssistedApply(job)}
+            disabled={assistedApplyLoading}
+            className="inline-flex items-center gap-1.5 text-xs font-mono px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-60 transition-colors"
+          >
+            <Send className="w-3 h-3" />
+            {assistedApplyLoading ? 'Preparing…' : 'Assisted Apply'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CompRange({ low, high }: { low: number | null; high: number | null }) {
   if (!low && !high) return null;
   const fmt = (n: number) => n >= 1000 ? `$${Math.round(n / 1000)}K` : `$${n}`;
@@ -772,11 +880,13 @@ export default function JobFinderPage() {
             }
             <p className="font-mono text-[var(--color-text-muted)] animate-pulse">
               {activeTab === 'greenhouse'
-                ? 'Scanning Greenhouse boards and scoring matches…'
+                ? 'Scanning Greenhouse boards…'
                 : 'Searching job boards and scoring matches…'
               }
             </p>
-            <p className="text-xs text-[var(--color-text-muted)]">This usually takes 20–40 seconds</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {activeTab === 'greenhouse' ? 'This usually takes 5–15 seconds' : 'This usually takes 20–40 seconds'}
+            </p>
           </div>
         )}
 
@@ -801,7 +911,7 @@ export default function JobFinderPage() {
                 {run.results.length} Jobs Found
               </h2>
               <span className="text-xs font-mono text-[var(--color-text-muted)]">
-                Sorted by match score
+                {isGreenhouseResults ? 'Sorted by keyword relevance' : 'Sorted by match score'}
               </span>
             </div>
 
@@ -811,20 +921,32 @@ export default function JobFinderPage() {
                 const savedId = savedMap.get(key);
                 const jobWithSource = job as JobFinderResult & { source?: string };
                 const isGh = jobWithSource.source === 'greenhouse' || isGreenhouseResults;
+                if (isGh) {
+                  return (
+                    <GreenhouseJobCard
+                      key={i}
+                      job={job}
+                      onEvaluate={handleEvaluate}
+                      onAssistedApply={handleAssistedApply}
+                      savedJobId={savedId}
+                      onSave={handleSave}
+                      onUnsave={(sid) => handleUnsave(sid, job)}
+                      assistedApplyLoading={assistedApplyLoadingKey === key}
+                    />
+                  );
+                }
                 return (
                   <JobCard
                     key={i}
                     job={job}
                     onEvaluate={handleEvaluate}
                     onEvaluateAndApply={handleEvaluateAndApply}
-                    onAssistedApply={isGh ? handleAssistedApply : undefined}
                     savedJobId={savedId}
                     onSave={handleSave}
                     onUnsave={(sid) => handleUnsave(sid, job)}
                     showApplyPrompt={applyPrompt?.key === key}
                     applyAppId={applyPrompt?.key === key ? applyPrompt.appId : null}
                     onDismissPrompt={() => setApplyPrompt(null)}
-                    isGreenhouse={isGh}
                     assistedApplyLoading={assistedApplyLoadingKey === key}
                   />
                 );
@@ -833,7 +955,7 @@ export default function JobFinderPage() {
 
             <div className="p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl text-xs text-[var(--color-text-muted)] font-mono">
               {isGreenhouseResults
-                ? 'Jobs sourced directly from Greenhouse ATS boards · Scored against your resume by AI · Click "Assisted Apply" to jump straight into the AI-powered apply flow'
+                ? 'Live jobs from Greenhouse ATS boards · Filtered by keyword relevance · Click "Evaluate Fit" to run an AI analysis or "Assisted Apply" to jump straight into the apply flow'
                 : 'Jobs sourced from Greenhouse, Lever, Wellfound and other boards via Exa · Scored against your resume by AI · Click "Evaluate Fit" to run a full analysis and add to your pipeline'
               }
             </div>
