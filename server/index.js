@@ -85,6 +85,24 @@ app.use('/api/*path', (req, res) => {
   res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
 });
 
+// Sitemap — public pages only
+app.get('/sitemap.xml', (req, res) => {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  const base = `${proto}://${host}`;
+  const now = new Date().toISOString().slice(0, 10);
+  const publicRoutes = ['/', '/login', '/signup', '/donate'];
+  const urls = publicRoutes.map(path => `
+  <url>
+    <loc>${base}${path}</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>${path === '/' ? 'weekly' : 'monthly'}</changefreq>
+    <priority>${path === '/' ? '1.0' : '0.6'}</priority>
+  </url>`).join('');
+  res.setHeader('Content-Type', 'application/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}\n</urlset>`);
+});
+
 // Serve the built React app for all non-API routes (client-side routing)
 const clientDist = join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist, { index: false }));
