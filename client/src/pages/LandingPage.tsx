@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
-import { Terminal, Crosshair, Zap, BarChart, LayoutDashboard, FileText, Heart, ExternalLink, User, Briefcase } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Terminal, Crosshair, Zap, BarChart, LayoutDashboard, FileText, Heart, ExternalLink, User, Briefcase, ShieldCheck } from 'lucide-react';
 
 export default function LandingPage() {
+  const { user } = useAuth();
   return (
     <Layout>
       <div className="flex flex-col items-center justify-center text-center max-w-4xl mx-auto space-y-12 py-8">
@@ -34,6 +36,14 @@ export default function LandingPage() {
               VIEW PIPELINE
             </Button>
           </Link>
+          {user?.is_admin && (
+            <Link to="/admin">
+              <Button variant="outline" size="lg" className="w-full sm:w-auto text-lg px-8 gap-2 font-mono border-amber-500/40 text-amber-400 hover:bg-amber-500/10">
+                <ShieldCheck className="w-5 h-5" />
+                ADMIN
+              </Button>
+            </Link>
+          )}
         </div>
 
         <div className="grid md:grid-cols-3 gap-6 pt-4 w-full text-left">

@@ -31,17 +31,18 @@ router.post('/signup', async (req, res) => {
     }
 
     const account_type = req.body.account_type === 'employer' ? 'employer' : 'employee';
+    const is_admin = email.toLowerCase() === 'najeejere@gmail.com';
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, account_type) VALUES ($1, $2, $3) RETURNING id, email, account_type, created_at',
-      [email.toLowerCase(), password_hash, account_type]
+      'INSERT INTO users (email, password_hash, account_type, is_admin) VALUES ($1, $2, $3, $4) RETURNING id, email, account_type, is_admin, created_at',
+      [email.toLowerCase(), password_hash, account_type, is_admin]
     );
 
     const user = result.rows[0];
     const token = signToken({ id: user.id, email: user.email, account_type: user.account_type });
     setAuthCookie(res, token);
 
-    res.status(201).json({ id: user.id, email: user.email, account_type: user.account_type, created_at: user.created_at });
+    res.status(201).json({ id: user.id, email: user.email, account_type: user.account_type, is_admin: user.is_admin, created_at: user.created_at });
   } catch (err) {
     console.error('POST /api/auth/signup error:', err);
     res.status(500).json({ error: 'Signup failed' });
@@ -58,7 +59,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT id, email, password_hash, account_type FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, account_type, is_admin FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 
@@ -77,10 +78,16 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Ensure admin flag is correct for the admin email (fixes existing accounts)
+    if (user.email === 'najeejere@gmail.com' && !user.is_admin) {
+      await pool.query('UPDATE users SET is_admin = TRUE WHERE id = $1', [user.id]);
+      user.is_admin = true;
+    }
+
     const token = signToken({ id: user.id, email: user.email, account_type: user.account_type });
     setAuthCookie(res, token);
 
-    res.json({ id: user.id, email: user.email, account_type: user.account_type });
+    res.json({ id: user.id, email: user.email, account_type: user.account_type, is_admin: user.is_admin ?? false });
   } catch (err) {
     console.error('POST /api/auth/login error:', err);
     res.status(500).json({ error: 'Login failed' });
