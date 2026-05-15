@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
@@ -7,6 +7,7 @@ import {
   getSavedJobs, saveJob, deleteSavedJob, getApplications, createApplication,
 } from '../api';
 import type { JobFinderRun, JobFinderResult, JobFinderHistoryItem, JobFinderPreferences } from '../api';
+import { useAuth } from '../context/AuthContext';
 import {
   Search, AlertCircle, Clock, FileText, ExternalLink,
   CheckCircle, XCircle, TrendingUp, ChevronRight, RotateCcw, Bookmark, BookmarkCheck,
@@ -337,6 +338,8 @@ const WORK_STYLES = [
 
 export default function JobFinderPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const profileDefaultsApplied = useRef(false);
 
   const [activeTab, setActiveTab] = useState<SearchTab>('greenhouse');
   const [run, setRun] = useState<JobFinderRun | null>(null);
@@ -363,6 +366,20 @@ export default function JobFinderPage() {
   const [ghQuery, setGhQuery] = useState('');
   const [ghLocation, setGhLocation] = useState('');
   const [ghWorkStyle, setGhWorkStyle] = useState<'' | 'remote' | 'hybrid' | 'on-site'>('');
+
+  // Pre-fill search fields from user profile (runs once when user loads)
+  useEffect(() => {
+    if (!user || profileDefaultsApplied.current) return;
+    profileDefaultsApplied.current = true;
+    if (user.desired_occupation) setGhQuery(user.desired_occupation);
+    if (user.location) {
+      setGhLocation(user.location);
+      setPrefs(p => ({ ...p, location: user.location! }));
+    }
+    if (user.industry) {
+      setPrefs(p => ({ ...p, focus_area: user.industry! }));
+    }
+  }, [user]);
 
   function jobKey(job: { role: string; company: string; url: string }) {
     return `${job.role}|||${job.company}|||${job.url}`;

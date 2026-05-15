@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { evaluate } from '../api';
 import { FileText, Link as LinkIcon } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const PROGRESS_STAGES = [
   { at: 0,  label: 'Initializing evaluation...' },
@@ -49,6 +50,7 @@ function useProgress(active: boolean) {
 export default function EvaluatePage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [cvContent, setCvContent] = useState('');
   const [jobUrl, setJobUrl] = useState('');
   const [jobDesc, setJobDesc] = useState('');
@@ -187,7 +189,11 @@ export default function EvaluatePage() {
               <textarea
                 value={jobDesc}
                 onChange={(e) => setJobDesc(e.target.value)}
-                placeholder="Paste the full job description here..."
+                placeholder={
+                  user?.desired_occupation
+                    ? `Paste a ${user.desired_occupation}${user.industry ? ` (${user.industry})` : ''} job description here...`
+                    : 'Paste the full job description here...'
+                }
                 className="w-full h-[50vh] font-mono text-sm resize-none bg-[var(--color-bg)]"
                 disabled={isEvaluating}
               />
