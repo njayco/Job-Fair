@@ -11,6 +11,29 @@ An AI-powered job search pipeline — originally a Claude Code CLI tool, rebuilt
 - **Auth**: httpOnly JWT cookies (30-day expiry)
 - **Payments**: Stripe (Free tier 3 evals/month, $19/month Pro)
 
+## Design System — "Midnight Clarity"
+
+Research-backed color palette and typography chosen for trust, authority, and growth signals on career platforms.
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| Background | `#0A0F1E` | Page background (deep midnight blue) |
+| Surface | `#0F172A` | Cards, panels, nav |
+| Surface Elevated | `#1E293B` | Hover states, table rows, borders |
+| Primary | `#3B82F6` | Electric blue — buttons, links, active nav |
+| Accent | `#10B981` | Emerald — scores, success states, growth |
+| Text | `#F0F4FF` | Warm white — primary content |
+| Muted | `#94A3B8` | Slate — labels, placeholders, metadata |
+| Error | `#EF4444` | Red — rejected/danger states |
+| Warning | `#F59E0B` | Amber — mid-tier scores |
+
+**Typography:**
+- `Plus Jakarta Sans` (600–800) — headings, company names, logo
+- `Inter` (400–600) — body copy, nav, descriptions
+- `JetBrains Mono` (400–600) — scores, dates, code, system labels
+
+Fonts loaded non-blocking via `<link media="print" onload>` pattern in `client/index.html`.
+
 ## Workflows
 
 | Workflow | Command | Port | Description |
@@ -49,10 +72,11 @@ career-ops/
 │       ├── revise-cv.js     # POST /api/revise-cv — Claude CV tailoring
 │       └── employer.js      # All /api/employer/* routes (see Employer API below)
 ├── client/                  # React+Vite frontend
+│   ├── index.html           # Font imports (Plus Jakarta Sans, Inter, JetBrains Mono)
 │   ├── src/
 │   │   ├── api.ts           # Typed API client for all endpoints
 │   │   ├── App.tsx          # Router — public + ProtectedRoute-wrapped routes
-│   │   ├── index.css        # Tailwind v4 + CSS vars (dark theme)
+│   │   ├── index.css        # Tailwind v4 + Midnight Clarity CSS variables
 │   │   ├── context/
 │   │   │   └── AuthContext.tsx       # User state, login/signup/logout
 │   │   ├── pages/
@@ -62,7 +86,7 @@ career-ops/
 │   │   │   ├── AccountPage.tsx       # /account — profile + logout
 │   │   │   ├── EvaluatePage.tsx      # /evaluate — CV + job input form
 │   │   │   ├── ResultsPage.tsx       # /results/:id — evaluation report
-│   │   │   ├── PipelinePage.tsx      # /pipeline — application tracker (job-seeker)
+│   │   │   ├── PipelinePage.tsx      # /pipeline — dashboard with stats + app table
 │   │   │   ├── ReportPage.tsx        # /report/:id — full markdown report
 │   │   │   ├── PricingPage.tsx       # /pricing — Free/$19 Pro tiers
 │   │   │   ├── BillingPage.tsx       # /billing — Stripe portal
@@ -74,7 +98,7 @@ career-ops/
 │   │   │   ├── EmployerCandidateProfilePage.tsx # /employer/jobs/:id/candidates/:cid — full profile
 │   │   │   └── EmployerPipelinePage.tsx   # /employer/pipeline — cross-job kanban pipeline
 │   │   └── components/
-│   │       ├── Layout.tsx              # Header/nav (adapts for employer vs job-seeker)
+│   │       ├── Layout.tsx              # Midnight Clarity nav + footer (glassmorphism header)
 │   │       ├── ProtectedRoute.tsx      # Redirects unauthenticated users to /login
 │   │       ├── ui/                     # Button, Badge primitives
 │   │       └── employer/
@@ -230,6 +254,13 @@ Each candidate's `evaluation_json` stores the full AI assessment:
 - `npm run merge` — Merge tracker data
 - `npm run pdf` — Generate PDF CV (standalone)
 
+## User Preferences
+
+- Keep code changes minimal and targeted — don't refactor unrelated code
+- Use inline styles when CSS variables aren't sufficient (avoids Tailwind v4 conflicts)
+- Always rebuild client (`cd client && npm run build`) and restart "Start API" after React changes
+- Prefer `onMouseEnter/Leave` inline handlers over CSS-only hover for complex glow effects
+
 ## Phases
 
 - [x] Phase 1: Backend API (Express + Anthropic + PostgreSQL)
@@ -240,3 +271,4 @@ Each candidate's `evaluation_json` stores the full AI assessment:
 - [x] Phase 6: Employer Mode — job postings, resume batch upload, AI candidate ranking
 - [x] Phase 7: Employer Mode — candidate profiles (A-F sections), interview question generation
 - [x] Phase 8: Employer Mode — pipeline view, client-side filters, resume download
+- [x] Phase 9: "Midnight Clarity" design system — new palette, Plus Jakarta Sans + JetBrains Mono, redesigned pipeline dashboard + nav
