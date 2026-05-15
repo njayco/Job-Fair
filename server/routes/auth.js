@@ -31,7 +31,8 @@ router.post('/signup', async (req, res) => {
     }
 
     const account_type = req.body.account_type === 'employer' ? 'employer' : 'employee';
-    const is_admin = email.toLowerCase() === 'najeejere@gmail.com';
+    const adminEmail = (process.env.ADMIN_USER || '').toLowerCase();
+    const is_admin = adminEmail && email.toLowerCase() === adminEmail;
     const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const result = await pool.query(
       'INSERT INTO users (email, password_hash, account_type, is_admin) VALUES ($1, $2, $3, $4) RETURNING id, email, account_type, is_admin, created_at',
@@ -79,7 +80,8 @@ router.post('/login', async (req, res) => {
     }
 
     // Ensure admin flag is correct for the admin email (fixes existing accounts)
-    if (user.email === 'najeejere@gmail.com' && !user.is_admin) {
+    const adminEmail = (process.env.ADMIN_USER || '').toLowerCase();
+    if (adminEmail && user.email === adminEmail && !user.is_admin) {
       await pool.query('UPDATE users SET is_admin = TRUE WHERE id = $1', [user.id]);
       user.is_admin = true;
     }

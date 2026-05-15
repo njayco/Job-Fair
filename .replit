@@ -80,6 +80,7 @@ externalPort = 3002
 
 [userenv.shared]
 STRIPE_PUBLISHABLE_KEY = "pk_live_51T2ip0K40VCZZTFqHrel6KUVlUuO0Y8dVpb6DLiKZewOy2j1LAvGHZIFsaruJQcwAWwd3tDk9lcMTMq2kMGiZea100U2Rb9SNP"
+ADMIN_USER = "nawwwwg@gmail.com"
 
 [deployment]
 deploymentTarget = "autoscale"

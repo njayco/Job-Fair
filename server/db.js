@@ -235,7 +235,6 @@ const SCHEMA_SQL = `
 
   -- Admin flag on users
   ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
-  UPDATE users SET is_admin = TRUE WHERE email = 'najeejere@gmail.com';
 
   -- Page-view analytics
   CREATE TABLE IF NOT EXISTS page_views (
@@ -251,6 +250,35 @@ const SCHEMA_SQL = `
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 `;
 
+async function seedAdminUser() {
+  const adminEmail = process.env.ADMIN_USER;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminEmail) return;
+
+  // Always ensure the flag is set for existing accounts
+  await pool.query(
+    'UPDATE users SET is_admin = TRUE WHERE email = $1 AND is_admin = FALSE',
+    [adminEmail.toLowerCase()]
+  );
+
+  // Auto-create the admin account if it doesn't exist and a password is provided
+  if (adminPassword) {
+    const { rows } = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
+      [adminEmail.toLowerCase()]
+    );
+    if (rows.length === 0) {
+      const bcrypt = await import('bcrypt');
+      const hash = await bcrypt.default.hash(adminPassword, 12);
+      await pool.query(
+        'INSERT INTO users (email, password_hash, account_type, is_admin) VALUES ($1, $2, $3, TRUE)',
+        [adminEmail.toLowerCase(), hash, 'employee']
+      );
+      console.log(`Admin user created: ${adminEmail}`);
+    }
+  }
+}
+
 export async function bootstrapSchema() {
   const client = await pool.connect();
   try {
@@ -262,6 +290,9 @@ export async function bootstrapSchema() {
   } finally {
     client.release();
   }
+  await seedAdminUser().catch(err =>
+    console.error('Admin seed error:', err.message)
+  );
 }
 
 export default pool;
