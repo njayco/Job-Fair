@@ -72,6 +72,20 @@ router.post('/avatar', upload.single('avatar'), async (req, res) => {
   }
 });
 
+// DELETE /api/profile/avatar — remove avatar
+router.delete('/avatar', async (req, res) => {
+  try {
+    await pool.query(
+      'UPDATE users SET avatar = NULL, avatar_mimetype = NULL WHERE id = $1',
+      [req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('DELETE /api/profile/avatar error:', err);
+    res.status(500).json({ error: 'Failed to remove avatar' });
+  }
+});
+
 // GET /api/profile/avatar — stream avatar bytes
 router.get('/avatar', async (req, res) => {
   try {

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { LogOut, Mail, Camera, CheckCircle, AlertCircle } from 'lucide-react';
-import { updateProfile, uploadAvatar } from '../api';
+import { updateProfile, uploadAvatar, deleteAvatar } from '../api';
 
 const FIELD_STYLE: React.CSSProperties = {
   width: '100%',
@@ -46,6 +46,7 @@ export default function AccountPage() {
   const [saveError, setSaveError] = useState('');
 
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarRemoving, setAvatarRemoving] = useState(false);
   const [avatarError, setAvatarError] = useState('');
   const [avatarKey, setAvatarKey] = useState(0);
 
@@ -88,6 +89,20 @@ export default function AccountPage() {
       setSaveError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    setAvatarRemoving(true);
+    setAvatarError('');
+    try {
+      await deleteAvatar();
+      await refreshUser();
+      setAvatarKey(k => k + 1);
+    } catch (err: unknown) {
+      setAvatarError(err instanceof Error ? err.message : 'Failed to remove photo');
+    } finally {
+      setAvatarRemoving(false);
     }
   };
 
@@ -160,13 +175,13 @@ export default function AccountPage() {
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={avatarUploading}
+              disabled={avatarUploading || avatarRemoving}
               className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center border-2 transition-colors"
               style={{
                 backgroundColor: '#3B82F6',
                 borderColor: '#0F172A',
                 color: '#fff',
-                cursor: avatarUploading ? 'wait' : 'pointer',
+                cursor: (avatarUploading || avatarRemoving) ? 'wait' : 'pointer',
               }}
               title="Change photo"
             >
@@ -199,17 +214,31 @@ export default function AccountPage() {
               ID #{user.id} · {user.account_type === 'employer' ? 'Employer' : 'Job Seeker'}
               {user.is_admin && <span style={{ color: '#F59E0B' }}> · Admin</span>}
             </div>
-            {avatarUploading && (
+            {(avatarUploading || avatarRemoving) && (
               <div className="text-xs mt-1" style={{ color: '#3B82F6', fontFamily: "'JetBrains Mono', monospace" }}>
-                Uploading photo...
+                {avatarRemoving ? 'Removing photo...' : 'Uploading photo...'}
               </div>
             )}
             {avatarError && (
               <div className="text-xs mt-1" style={{ color: '#EF4444' }}>{avatarError}</div>
             )}
-            {!avatarUploading && (
-              <div className="text-xs mt-1" style={{ color: '#94A3B8' }}>
-                Click the camera icon to change your photo (max 5 MB)
+            {!avatarUploading && !avatarRemoving && (
+              <div className="flex items-center gap-3 mt-1">
+                <div className="text-xs" style={{ color: '#94A3B8' }}>
+                  Click the camera icon to change your photo (max 5 MB)
+                </div>
+                {user.has_avatar && (
+                  <button
+                    type="button"
+                    onClick={handleAvatarRemove}
+                    className="text-xs"
+                    style={{ color: '#EF4444', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: "'Inter', sans-serif" }}
+                    onMouseEnter={e => (e.currentTarget.style.color = '#F87171')}
+                    onMouseLeave={e => (e.currentTarget.style.color = '#EF4444')}
+                  >
+                    Remove photo
+                  </button>
+                )}
               </div>
             )}
           </div>

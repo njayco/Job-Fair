@@ -1138,6 +1138,16 @@ export async function updateProfile(body: {
   return data;
 }
 
+export async function deleteAvatar(): Promise<{ ok: boolean }> {
+  const res = await fetch('/api/profile/avatar', {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to remove avatar');
+  return data;
+}
+
 export async function uploadAvatar(file: File): Promise<{ ok: boolean }> {
   const fd = new FormData();
   fd.append('avatar', file);
